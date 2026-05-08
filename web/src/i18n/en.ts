@@ -418,6 +418,39 @@ export const en: Translations = {
     expiresIn: "expires in {time}",
   },
 
+  chatSidebar: {
+    currentModel: "Current model",
+    switchModel: "Switch model",
+    reconnect: "Reconnect",
+    tools: "Tools",
+    noToolCalls: "No tool calls yet",
+    connection: {
+      idle: "idle",
+      connecting: "connecting",
+      open: "live",
+      closed: "closed",
+      error: "error",
+    },
+  },
+
+  modelPicker: {
+    title: "Switch Model",
+    current: "current",
+    unknown: "unknown",
+    filterPlaceholder: "Filter providers and models...",
+    savesToConfig: "Saves to config.yaml; applies to new sessions.",
+    persistGlobal: "Persist globally (otherwise this session only)",
+    noMatches: "no matches",
+    noAuthenticatedProviders: "no authenticated providers",
+    noModelsMatch: "no models match your filter",
+    noModelsListed: "no models listed for this provider",
+    pickProvider: "pick a provider",
+    modelsCount: "{count} models",
+    currentTag: "current",
+    switchAction: "Switch",
+    loading: "loading...",
+  },
+
   language: {
     switchTo: "Switch to Chinese",
   },

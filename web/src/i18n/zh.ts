@@ -413,6 +413,39 @@ export const zh: Translations = {
     expiresIn: "{time}后过期",
   },
 
+  chatSidebar: {
+    currentModel: "当前模型",
+    switchModel: "切换模型",
+    reconnect: "重新连接",
+    tools: "工具调用",
+    noToolCalls: "暂无工具调用",
+    connection: {
+      idle: "空闲",
+      connecting: "连接中",
+      open: "在线",
+      closed: "已关闭",
+      error: "错误",
+    },
+  },
+
+  modelPicker: {
+    title: "切换模型",
+    current: "当前",
+    unknown: "未知",
+    filterPlaceholder: "筛选提供商和模型...",
+    savesToConfig: "保存到 config.yaml；对新会话生效。",
+    persistGlobal: "设为全局默认（否则仅当前会话）",
+    noMatches: "没有匹配结果",
+    noAuthenticatedProviders: "没有已认证的提供商",
+    noModelsMatch: "没有匹配筛选条件的模型",
+    noModelsListed: "该提供商没有列出模型",
+    pickProvider: "请选择提供商",
+    modelsCount: "{count} 个模型",
+    currentTag: "当前",
+    switchAction: "切换",
+    loading: "加载中...",
+  },
+
   language: {
     switchTo: "切换到英文",
   },

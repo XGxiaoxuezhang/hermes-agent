@@ -423,6 +423,41 @@ export interface Translations {
     expiresIn: string;
   };
 
+  // ── Chat sidebar ──
+  chatSidebar: {
+    currentModel: string;
+    switchModel: string;
+    reconnect: string;
+    tools: string;
+    noToolCalls: string;
+    connection: {
+      idle: string;
+      connecting: string;
+      open: string;
+      closed: string;
+      error: string;
+    };
+  };
+
+  // ── Model picker ──
+  modelPicker: {
+    title: string;
+    current: string;
+    unknown: string;
+    filterPlaceholder: string;
+    savesToConfig: string;
+    persistGlobal: string;
+    noMatches: string;
+    noAuthenticatedProviders: string;
+    noModelsMatch: string;
+    noModelsListed: string;
+    pickProvider: string;
+    modelsCount: string;
+    currentTag: string;
+    switchAction: string;
+    loading: string;
+  };
+
   // ── Language switcher ──
   language: {
     switchTo: string;

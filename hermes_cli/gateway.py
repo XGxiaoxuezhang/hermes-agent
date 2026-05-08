@@ -436,6 +436,33 @@ def _gateway_run_args_for_profile(profile: str) -> list[str]:
     return args
 
 
+def _current_profile_name() -> str:
+    profile_arg = _profile_arg()
+    return profile_arg.split()[-1] if profile_arg else "default"
+
+
+def launch_detached_profile_gateway(profile: str) -> int | None:
+    """Start a manually-run profile gateway in the background."""
+    kwargs: dict[str, object] = {
+        "cwd": str(PROJECT_ROOT),
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
+    if is_windows():
+        kwargs["creationflags"] = (
+            getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            | getattr(subprocess, "DETACHED_PROCESS", 0)
+        )
+    else:
+        kwargs["start_new_session"] = True
+
+    try:
+        proc = subprocess.Popen(_gateway_run_args_for_profile(profile), **kwargs)
+    except OSError:
+        return None
+    return proc.pid
+
+
 def launch_detached_profile_gateway_restart(profile: str, old_pid: int) -> bool:
     """Relaunch a manually-run profile gateway after its current PID exits."""
     if old_pid <= 0:
@@ -907,7 +934,7 @@ def stop_profile_gateway() -> bool:
     Returns True if a process was stopped, False if none was found.
     """
     try:
-        from gateway.status import get_running_pid, remove_pid_file
+        from gateway.status import _pid_exists, get_running_pid, remove_pid_file
     except ImportError:
         return False
 
@@ -932,10 +959,13 @@ def stop_profile_gateway() -> bool:
     # Wait briefly for it to exit
     import time as _time
     for _ in range(20):
+        if not _pid_exists(pid):
+            break
         try:
-            os.kill(pid, 0)
             _time.sleep(0.5)
-        except (ProcessLookupError, PermissionError):
+        except KeyboardInterrupt:
+            raise
+        except Exception:
             break
 
     if get_running_pid() is None:
@@ -4655,6 +4685,12 @@ def _gateway_command_inner(args):
             systemd_start(system=system)
         elif is_macos():
             launchd_start()
+        elif is_windows():
+            pid = launch_detached_profile_gateway(_current_profile_name())
+            if pid is None:
+                print("✗ Failed to start gateway in the background")
+                sys.exit(1)
+            print(f"✓ Gateway started in the background (PID: {pid})")
         elif is_wsl():
             print("WSL detected but systemd is not available.")
             print("Run the gateway in foreground mode instead:")
@@ -4762,6 +4798,12 @@ def _gateway_command_inner(args):
                 systemd_start(system=system)
             elif is_macos() and get_launchd_plist_path().exists():
                 launchd_start()
+            elif is_windows():
+                pid = launch_detached_profile_gateway(_current_profile_name())
+                if pid is None:
+                    print("✗ Failed to start gateway in the background")
+                    sys.exit(1)
+                print(f"✓ Gateway started in the background (PID: {pid})")
             else:
                 run_gateway(verbose=0)
             return
@@ -4813,7 +4855,14 @@ def _gateway_command_inner(args):
 
             # Start fresh
             print("Starting gateway...")
-            run_gateway(verbose=0)
+            if is_windows():
+                pid = launch_detached_profile_gateway(_current_profile_name())
+                if pid is None:
+                    print("✗ Failed to start gateway in the background")
+                    sys.exit(1)
+                print(f"✓ Gateway started in the background (PID: {pid})")
+            else:
+                run_gateway(verbose=0)
     
     elif subcmd == "status":
         deep = getattr(args, 'deep', False)
