@@ -77,7 +77,7 @@ import { useTheme } from "@/themes";
 import { isDashboardEmbeddedChatEnabled } from "@/lib/dashboard-flags";
 
 function RootRedirect() {
-  return <Navigate to="/sessions" replace />;
+  return <Navigate to={isDashboardEmbeddedChatEnabled() ? "/chat" : "/sessions"} replace />;
 }
 
 function UnknownRouteFallback({ pluginsLoading }: { pluginsLoading: boolean }) {

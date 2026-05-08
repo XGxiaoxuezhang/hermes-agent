@@ -3,7 +3,8 @@ param(
     [int]$VitePort = 5173,
     [switch]$NoInstall,
     [switch]$NoOpen,
-    [switch]$Tui
+    [switch]$Tui,
+    [switch]$NoTui
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,10 +33,11 @@ if (-not $NoInstall) {
     }
 }
 
-$env:HERMES_DASHBOARD_TUI = if ($Tui) { "1" } else { $env:HERMES_DASHBOARD_TUI }
+$embeddedChat = (-not $NoTui) -or $Tui
+$env:HERMES_DASHBOARD_TUI = if ($embeddedChat) { "1" } else { "0" }
 
 $backendArgs = @("-m", "hermes_cli.main", "dashboard", "--port", "$Port", "--no-open")
-if ($Tui) {
+if ($embeddedChat) {
     $backendArgs += "--tui"
 }
 

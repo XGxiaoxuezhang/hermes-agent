@@ -258,6 +258,32 @@ class PtyBridge:
             return
         self._closed = True
 
+        if _PTY_BACKEND == "winpty":
+            try:
+                if self._proc.isalive():
+                    self._proc.terminate()
+            except Exception:
+                pass
+            deadline = time.monotonic() + 0.5
+            while True:
+                try:
+                    alive = self._proc.isalive()
+                except Exception:
+                    alive = False
+                if not alive or time.monotonic() >= deadline:
+                    break
+                time.sleep(0.02)
+            try:
+                if self._proc.isalive():
+                    self._proc.kill(signal.SIGTERM)
+            except Exception:
+                pass
+            try:
+                self._proc.close(force=True)
+            except Exception:
+                pass
+            return
+
         # SIGHUP is the conventional "your terminal went away" signal.
         # We escalate if the child ignores it.
         for sig in (signal.SIGHUP, signal.SIGTERM, signal.SIGKILL):
