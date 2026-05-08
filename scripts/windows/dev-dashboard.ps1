@@ -44,7 +44,7 @@ Start-Process -WindowStyle Hidden -FilePath $python -ArgumentList $backendArgs -
 Push-Location $webDir
 try {
     $env:HERMES_DASHBOARD_URL = "http://127.0.0.1:$Port"
-    $viteArgs = @("run", "dev", "--", "--host", "127.0.0.1", "--port", "$VitePort")
+    $viteArgs = @("run", "dev", "--", "--host", "127.0.0.1", "--port", "$VitePort", "--force")
     if ($NoOpen) {
         & npm @viteArgs
     } else {
