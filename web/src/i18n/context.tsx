@@ -13,6 +13,14 @@ function getInitialLocale(): Locale {
   } catch {
     // SSR or privacy mode
   }
+  try {
+    const languages = navigator.languages?.length ? navigator.languages : [navigator.language];
+    if (languages.some((lang) => lang.toLowerCase().startsWith("zh"))) {
+      return "zh";
+    }
+  } catch {
+    // SSR or privacy mode
+  }
   return "en";
 }
 

@@ -13,7 +13,7 @@ Browser-based dashboard for managing Hermes Agent configuration, API keys, and m
 ```bash
 # Start the backend API server
 cd ../
-python -m hermes_cli.main web --no-open
+python -m hermes_cli.main dashboard --no-open
 
 # In another terminal, start the Vite dev server (with HMR + API proxy)
 cd web/
@@ -29,6 +29,16 @@ npm run build
 ```
 
 This outputs to `../hermes_cli/web_dist/`, which the FastAPI server serves as a static SPA. The built assets are included in the Python package via `pyproject.toml` package-data.
+
+### Windows native
+
+PowerShell users can run the development dashboard without WSL:
+
+```powershell
+.\scripts\windows\dev-dashboard.ps1
+```
+
+That script installs `.[web,pty]`, installs the React dashboard dependencies, starts the FastAPI backend on `127.0.0.1:9119`, and starts Vite on `127.0.0.1:5173`.
 
 ## Structure
 

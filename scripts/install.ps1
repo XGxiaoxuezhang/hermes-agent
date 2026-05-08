@@ -735,6 +735,25 @@ function Install-NodeDeps {
         Pop-Location
     }
 
+    # Install and build the browser dashboard. The dashboard is the easiest
+    # native-Windows path for model/provider/API-key configuration.
+    $webDir = "$InstallDir\web"
+    if (Test-Path "$webDir\package.json") {
+        Write-Info "Installing dashboard dependencies..."
+        Push-Location $webDir
+        try {
+            npm install --silent 2>&1 | Out-Null
+            Write-Success "Dashboard dependencies installed"
+
+            Write-Info "Building dashboard assets..."
+            npm run build --silent 2>&1 | Out-Null
+            Write-Success "Dashboard built"
+        } catch {
+            Write-Warn "Dashboard npm install/build failed (run: cd web; npm install; npm run build)"
+        }
+        Pop-Location
+    }
+
 
     
     Pop-Location

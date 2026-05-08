@@ -7,11 +7,10 @@ keystrokes can be fed back in.  The only caller today is the
 
 Design constraints:
 
-* **POSIX-only.**  Hermes Agent supports Windows exclusively via WSL, which
-  exposes a native POSIX PTY via ``openpty(3)``.  Native Windows Python
-  has no PTY; :class:`PtyUnavailableError` is raised with a user-readable
-  install/platform message so the dashboard can render a banner instead of
-  crashing.
+* **Cross-platform PTY backend.** POSIX uses :mod:`ptyprocess`; native
+  Windows uses :mod:`pywinpty` / ConPTY. If neither backend is available,
+  :class:`PtyUnavailableError` is raised with a user-readable install message
+  so the dashboard can render a banner instead of crashing.
 * **Zero Node dependency on the server side.**  We use :mod:`ptyprocess`,
   which is a pure-Python wrapper around the OS calls.  The browser talks
   to the same ``hermes --tui`` binary it would launch from the CLI, so
@@ -26,22 +25,37 @@ Design constraints:
 from __future__ import annotations
 
 import errno
-import fcntl
 import os
-import select
 import signal
 import struct
 import sys
-import termios
 import time
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
-try:
-    import ptyprocess  # type: ignore
-    _PTY_AVAILABLE = not sys.platform.startswith("win")
-except ImportError:  # pragma: no cover - dev env without ptyprocess
+if sys.platform.startswith("win"):
+    try:
+        import winpty  # type: ignore
+        _PTY_BACKEND = "winpty"
+    except ImportError:  # pragma: no cover - dev env without pywinpty
+        winpty = None  # type: ignore
+        _PTY_BACKEND = ""
     ptyprocess = None  # type: ignore
-    _PTY_AVAILABLE = False
+    fcntl = None  # type: ignore
+    select = None  # type: ignore
+    termios = None  # type: ignore
+else:
+    try:
+        import fcntl
+        import select
+        import termios
+        import ptyprocess  # type: ignore
+        _PTY_BACKEND = "ptyprocess"
+    except ImportError:  # pragma: no cover - dev env without ptyprocess
+        ptyprocess = None  # type: ignore
+        fcntl = None  # type: ignore
+        select = None  # type: ignore
+        termios = None  # type: ignore
+        _PTY_BACKEND = ""
 
 
 __all__ = ["PtyBridge", "PtyUnavailableError"]
@@ -50,9 +64,7 @@ __all__ = ["PtyBridge", "PtyUnavailableError"]
 class PtyUnavailableError(RuntimeError):
     """Raised when a PTY cannot be created on this platform.
 
-    Today this means native Windows (no ConPTY bindings) or a dev
-    environment missing the ``ptyprocess`` dependency.  The dashboard
-    surfaces the message to the user as a chat-tab banner.
+    The dashboard surfaces the message to the user as a chat-tab banner.
     """
 
 
@@ -67,9 +79,9 @@ class PtyBridge:
     ``os.write`` on the master fd, which is safe.
     """
 
-    def __init__(self, proc: "ptyprocess.PtyProcess"):  # type: ignore[name-defined]
+    def __init__(self, proc: Any):
         self._proc = proc
-        self._fd: int = proc.fd
+        self._fd: Optional[int] = getattr(proc, "fd", None)
         self._closed = False
 
     # -- lifecycle --------------------------------------------------------
@@ -77,7 +89,7 @@ class PtyBridge:
     @classmethod
     def is_available(cls) -> bool:
         """True if a PTY can be spawned on this platform."""
-        return bool(_PTY_AVAILABLE)
+        return bool(_PTY_BACKEND)
 
     @classmethod
     def spawn(
@@ -95,11 +107,12 @@ class PtyBridge:
         PTY.  Raises :class:`FileNotFoundError` or :class:`OSError` for
         ordinary exec failures (missing binary, bad cwd, etc.).
         """
-        if not _PTY_AVAILABLE:
+        if not _PTY_BACKEND:
             if sys.platform.startswith("win"):
                 raise PtyUnavailableError(
-                    "Pseudo-terminals are unavailable on this platform. "
-                    "Hermes Agent supports Windows only via WSL."
+                    "The `pywinpty` package is missing. "
+                    "Install with: pip install pywinpty "
+                    "(or pip install -e '.[pty]')."
                 )
             if ptyprocess is None:
                 raise PtyUnavailableError(
@@ -116,12 +129,20 @@ class PtyBridge:
         spawn_env = (os.environ.copy() if env is None else env.copy())
         if not spawn_env.get("TERM"):
             spawn_env["TERM"] = "xterm-256color"
-        proc = ptyprocess.PtyProcess.spawn(  # type: ignore[union-attr]
-            list(argv),
-            cwd=cwd,
-            env=spawn_env,
-            dimensions=(rows, cols),
-        )
+        if _PTY_BACKEND == "winpty":
+            proc = winpty.PtyProcess.spawn(  # type: ignore[union-attr]
+                list(argv),
+                cwd=cwd,
+                env=spawn_env,
+                dimensions=(rows, cols),
+            )
+        else:
+            proc = ptyprocess.PtyProcess.spawn(  # type: ignore[union-attr]
+                list(argv),
+                cwd=cwd,
+                env=spawn_env,
+                dimensions=(rows, cols),
+            )
         return cls(proc)
 
     @property
@@ -151,6 +172,22 @@ class PtyBridge:
         """
         if self._closed:
             return None
+        if _PTY_BACKEND == "winpty":
+            try:
+                data = self._proc.read(65536)
+            except EOFError:
+                return None
+            except OSError as exc:
+                if exc.errno in (errno.EIO, errno.EBADF):
+                    return None
+                raise
+            if data is None:
+                return None
+            if isinstance(data, str):
+                return data.encode("utf-8", errors="replace")
+            return bytes(data)
+        if self._fd is None or select is None:
+            return None
         try:
             readable, _, _ = select.select([self._fd], [], [], timeout)
         except (OSError, ValueError):
@@ -172,6 +209,11 @@ class PtyBridge:
         """Write raw bytes to the PTY master (i.e. the child's stdin)."""
         if self._closed or not data:
             return
+        if _PTY_BACKEND == "winpty":
+            self._proc.write(data.decode("utf-8", errors="replace"))
+            return
+        if self._fd is None:
+            return
         # os.write can return a short write under load; loop until drained.
         view = memoryview(data)
         while view:
@@ -188,6 +230,14 @@ class PtyBridge:
     def resize(self, cols: int, rows: int) -> None:
         """Forward a terminal resize to the child via ``TIOCSWINSZ``."""
         if self._closed:
+            return
+        if _PTY_BACKEND == "winpty":
+            try:
+                self._proc.setwinsize(max(1, rows), max(1, cols))
+            except Exception:
+                pass
+            return
+        if self._fd is None or fcntl is None or termios is None:
             return
         # struct winsize: rows, cols, xpixel, ypixel (all unsigned short)
         winsize = struct.pack("HHHH", max(1, rows), max(1, cols), 0, 0)

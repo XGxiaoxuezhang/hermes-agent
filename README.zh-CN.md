@@ -34,11 +34,11 @@
 curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
 ```
 
-支持 Linux、macOS、WSL2 和 Android (Termux)。安装程序会自动处理平台特定的配置。
+支持 Linux、macOS、Windows、WSL2 和 Android (Termux)。安装程序会自动处理平台特定的配置。
 
 > **Android / Termux：** 已测试的手动安装路径请参考 [Termux 指南](https://hermes-agent.nousresearch.com/docs/getting-started/termux)。在 Termux 上，Hermes 会安装精选的 `.[termux]` 扩展，因为完整的 `.[all]` 扩展会拉取 Android 不兼容的语音依赖。
 >
-> **Windows：** 原生 Windows 不受支持。请安装 [WSL2](https://learn.microsoft.com/zh-cn/windows/wsl/install) 并运行上述命令。
+> **Windows：** 本分支支持原生 Windows。请在 PowerShell 中运行 `.\scripts\install.ps1`，或在开发目录中使用 `.\scripts\windows\dev-dashboard.ps1` 启动本地配置面板。部分隔离型终端后端仍建议使用 Docker 或 WSL2。
 
 安装后：
 
@@ -54,6 +54,7 @@ hermes              # 开始对话！
 ```bash
 hermes              # 交互式 CLI — 开始对话
 hermes model        # 选择 LLM 提供商和模型
+hermes dashboard    # 打开网页配置面板（模型、API Key、配置、会话）
 hermes tools        # 配置启用的工具
 hermes config set   # 设置单个配置项
 hermes gateway      # 启动消息网关（Telegram、Discord 等）
