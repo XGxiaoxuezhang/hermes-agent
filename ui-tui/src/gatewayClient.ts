@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { type ChildProcess, spawn, type StdioOptions } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
 import { delimiter, resolve } from 'node:path'
@@ -31,8 +31,10 @@ const resolvePython = (root: string) => {
     venv && resolve(venv, 'Scripts/python.exe'),
     resolve(root, '.venv/bin/python'),
     resolve(root, '.venv/bin/python3'),
+    resolve(root, '.venv/Scripts/python.exe'),
     resolve(root, 'venv/bin/python'),
-    resolve(root, 'venv/bin/python3')
+    resolve(root, 'venv/bin/python3'),
+    resolve(root, 'venv/Scripts/python.exe')
   ].find(p => p && existsSync(p))
 
   return hit || (process.platform === 'win32' ? 'python' : 'python3')
@@ -131,7 +133,11 @@ export class GatewayClient extends EventEmitter {
       })
     }, STARTUP_TIMEOUT_MS)
 
-    this.proc = spawn(python, ['-m', 'tui_gateway.entry'], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] })
+    const stdio: StdioOptions = process.platform === 'win32'
+      ? ['overlapped', 'pipe', 'pipe']
+      : ['pipe', 'pipe', 'pipe']
+
+    this.proc = spawn(python, ['-m', 'tui_gateway.entry'], { cwd, env, stdio })
 
     this.stdoutRl = createInterface({ input: this.proc.stdout! })
     this.stdoutRl.on('line', raw => {
