@@ -196,13 +196,13 @@ export function ModelPickerDialog(props: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-3 sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="model-picker-title"
     >
-      <div className="relative w-full max-w-3xl max-h-[80vh] border border-border bg-card shadow-2xl flex flex-col">
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-[min(44rem,calc(100vw-1.5rem))] flex-col overflow-hidden border border-border bg-card shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:w-[min(48rem,calc(100vw-2rem))]">
         <Button
           ghost
           size="icon"
@@ -239,7 +239,7 @@ export function ModelPickerDialog(props: Props) {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 grid grid-cols-[200px_1fr] overflow-hidden">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden sm:grid-cols-[200px_minmax(0,1fr)]">
           <ProviderColumn
             loading={loading}
             error={error}
@@ -322,7 +322,7 @@ function ProviderColumn({
   onSelect(slug: string): void;
 }) {
   return (
-    <div className="border-r border-border overflow-y-auto">
+    <div className="max-h-48 overflow-y-auto border-b border-border sm:max-h-none sm:border-b-0 sm:border-r">
       {loading && (
         <div className="flex items-center gap-2 p-4 text-xs text-muted-foreground">
           <Spinner className="text-xs" /> loading…
