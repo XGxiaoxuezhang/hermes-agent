@@ -92,7 +92,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
         const sid = getUiState().sid
 
         if (!sid) {
-          return sys('session not ready yet')
+          return sys('会话还没有就绪')
         }
 
         turnController.clearStatusTimer()
@@ -116,14 +116,14 @@ export function useSubmission(opts: UseSubmissionOptions) {
           }
 
           sys(`error: ${e.message}`)
-          patchUiState({ busy: false, status: 'ready' })
+          patchUiState({ busy: false, status: '就绪' })
         })
       }
 
       const sid = getUiState().sid
 
       if (!sid) {
-        return sys('session not ready yet')
+        return sys('会话还没有就绪')
       }
 
       // Always ask the backend whether this looks like a file drop.
@@ -172,7 +172,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
           }
         })
         .catch((e: Error) => sys(`error: ${e.message}`))
-        .finally(() => patchUiState({ busy: false, status: 'ready' }))
+        .finally(() => patchUiState({ busy: false, status: '就绪' }))
     },
     [appendMessage, gw, sys]
   )

@@ -841,7 +841,7 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
             <span className="inline-flex items-center gap-1.5">
               <Copy className="h-3 w-3 shrink-0" />
               <span className="hidden min-[400px]:inline tracking-wide">
-                {copyState === "copied" ? "copied" : "copy last response"}
+                {copyState === "copied" ? "已复制" : "复制上一条回复"}
               </span>
             </span>
           </Button>

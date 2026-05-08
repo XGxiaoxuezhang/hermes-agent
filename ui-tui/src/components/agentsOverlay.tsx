@@ -482,7 +482,7 @@ function Detail({ id, node, t }: { id?: string; node: SubagentNode; t: Theme }) 
       ) : null}
 
       {toolLines.length > 0 ? (
-        <OverlaySection count={toolLines.length} defaultOpen t={t} title="Tool calls">
+        <OverlaySection count={toolLines.length} defaultOpen t={t} title="工具调用">
           {toolLines.map((line, i) => (
             <Text color={t.color.text} key={i} wrap="wrap">
               <Text color={t.color.muted}>·</Text> {line}

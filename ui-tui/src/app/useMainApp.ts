@@ -55,7 +55,7 @@ const capHistory = (items: Msg[]): Msg[] => {
 }
 
 const statusColorOf = (status: string, t: { error: string; muted: string; ok: string; warn: string }) => {
-  if (status === 'ready') {
+  if (status === 'ready' || status === '就绪') {
     return t.ok
   }
 
@@ -63,7 +63,7 @@ const statusColorOf = (status: string, t: { error: string; muted: string; ok: st
     return t.error
   }
 
-  if (status === 'interrupted') {
+  if (status === 'interrupted' || status === '已中断') {
     return t.warn
   }
 
@@ -456,7 +456,7 @@ export function useMainApp(gw: GatewayClient) {
             tools: [buildToolTrailLine('clarify', clarify.question)]
           })
           appendMessage({ role: 'user', text: answer })
-          patchUiState({ status: 'running…' })
+          patchUiState({ status: '运行中…' })
         } else {
           sys('prompt cancelled')
         }
@@ -815,7 +815,7 @@ export function useMainApp(gw: GatewayClient) {
       turnStartedAt: ui.sid ? turnStartedAt : null,
       // CLI parity: the classic prompt_toolkit status bar shows a red dot
       // on REC (cli.py:_get_voice_status_fragments line 2344).
-      voiceLabel: voiceRecording ? '● REC' : voiceProcessing ? '◉ STT' : `voice ${voiceEnabled ? 'on' : 'off'}`
+      voiceLabel: voiceRecording ? '● 录音中' : voiceProcessing ? '◉ 识别中' : `语音${voiceEnabled ? '开' : '关'}`
     }),
     [
       cwd,

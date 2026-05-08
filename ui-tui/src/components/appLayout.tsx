@@ -217,7 +217,7 @@ const ComposerPane = memo(function ComposerPane({
 
       {ui.bgTasks.size > 0 && (
         <Text color={ui.theme.color.muted}>
-          {ui.bgTasks.size} background {ui.bgTasks.size === 1 ? 'task' : 'tasks'} running
+          {ui.bgTasks.size} 个后台任务运行中
         </Text>
       )}
 
@@ -286,7 +286,7 @@ const ComposerPane = memo(function ComposerPane({
                   onChange={composer.updateInput}
                   onPaste={composer.handleTextPaste}
                   onSubmit={composer.submit}
-                  placeholder={composer.empty ? PLACEHOLDER : ui.busy ? 'Ctrl+C to interrupt…' : ''}
+                  placeholder={composer.empty ? PLACEHOLDER : ui.busy ? 'Ctrl+C 中断…' : ''}
                   value={composer.input}
                   voiceRecordKey={composer.voiceRecordKey}
                 />

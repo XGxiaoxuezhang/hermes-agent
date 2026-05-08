@@ -23,7 +23,7 @@ import { getUiState, patchUiState } from './uiStore.js'
 
 const NO_PROVIDER_RE = /\bNo (?:LLM|inference) provider configured\b/i
 
-const statusFromBusy = () => (getUiState().busy ? 'running…' : 'ready')
+const statusFromBusy = () => (getUiState().busy ? '运行中…' : '就绪')
 
 const applySkin = (s: GatewaySkin) =>
   patchUiState({
@@ -163,7 +163,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       }
 
       if (!sid) {
-        return sys('startup query skipped: no active session')
+          return sys('启动提问已跳过：当前没有活动会话')
       }
 
       if (STARTUP_IMAGE) {
@@ -211,7 +211,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       .catch((e: unknown) => turnController.pushActivity(`command catalog unavailable: ${rpcErrorMessage(e)}`, 'info'))
 
     if (STARTUP_RESUME_ID) {
-      patchUiState({ status: 'resuming…' })
+      patchUiState({ status: '正在恢复…' })
       resumeById(STARTUP_RESUME_ID)
       scheduleStartupPrompt()
 
@@ -227,7 +227,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
     rpc<ConfigFullResponse>('config.get', { key: 'full' })
       .then(cfg => {
         if (!cfg?.config?.display?.tui_auto_resume_recent) {
-          patchUiState({ status: 'forging session…' })
+          patchUiState({ status: '正在创建会话…' })
           newSession()
           scheduleStartupPrompt()
 
@@ -238,20 +238,20 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           const target = r?.session_id
 
           if (target) {
-            patchUiState({ status: 'resuming most recent…' })
+            patchUiState({ status: '正在恢复最近会话…' })
             resumeById(target)
             scheduleStartupPrompt()
 
             return
           }
 
-          patchUiState({ status: 'forging session…' })
+          patchUiState({ status: '正在创建会话…' })
           newSession()
           scheduleStartupPrompt()
         })
       })
       .catch(() => {
-        patchUiState({ status: 'forging session…' })
+        patchUiState({ status: '正在创建会话…' })
         newSession()
         scheduleStartupPrompt()
       })
@@ -282,7 +282,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         patchUiState(state => ({
           ...state,
           info,
-          status: state.status === 'starting agent…' ? 'ready' : state.status,
+          status: state.status === '正在启动智能体…' || state.status === 'starting agent…' ? '就绪' : state.status,
           usage: info.usage ? { ...state.usage, ...info.usage } : state.usage
         }))
 

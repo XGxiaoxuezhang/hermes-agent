@@ -417,7 +417,7 @@ function SubagentAccordion({
           }}
           open={openThinking}
           t={t}
-          title="Thinking"
+          title="思考"
         />
       ),
       key: 'thinking',
@@ -450,7 +450,7 @@ function SubagentAccordion({
           }}
           open={openTools}
           t={t}
-          title="Tool calls"
+          title="工具调用"
         />
       ),
       key: 'tools',
@@ -1002,11 +1002,11 @@ export const ToolTrail = memo(function ToolTrail({
             <Text color={t.color.accent}>{openThinking ? '▾ ' : '▸ '}</Text>
             {thinkingLive ? (
               <Text bold color={t.color.text}>
-                Thinking
+                思考中
               </Text>
             ) : (
               <Text color={t.color.muted} dim>
-                Thinking
+                思考
               </Text>
             )}
             {thinkingTokensLabel ? (
@@ -1049,7 +1049,7 @@ export const ToolTrail = memo(function ToolTrail({
           open={openTools}
           suffix={toolTokensLabel}
           t={t}
-          title="Tool calls"
+          title="工具调用"
         />
       ),
       key: 'tools',

@@ -138,7 +138,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
       const r = await rpc<SessionCreateResponse>('session.create', { cols: colsRef.current })
 
       if (!r) {
-        return patchUiState({ status: 'ready' })
+        return patchUiState({ status: '就绪' })
       }
 
       const info = r.info ?? null
@@ -151,7 +151,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
       patchUiState({
         info,
         sid: r.session_id,
-        status: info?.version ? 'ready' : 'starting agent…',
+        status: info?.version ? '就绪' : '正在启动智能体…',
         usage: usageFrom(info)
       })
 
@@ -201,7 +201,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
   const resumeById = useCallback(
     (id: string) => {
       patchOverlayState({ picker: false })
-      patchUiState({ status: 'resuming…' })
+      patchUiState({ status: '正在恢复…' })
 
       rpc<SetupStatusResponse>('setup.status', {}).then(setup => {
         if (setup?.provider_configured === false) {
@@ -220,7 +220,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
               if (!r) {
                 sys('error: invalid response: session.resume')
 
-                return patchUiState({ status: 'ready' })
+                return patchUiState({ status: '就绪' })
               }
 
               resetSession()
@@ -233,14 +233,14 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
               patchUiState({
                 info: r.info ?? null,
                 sid: r.session_id,
-                status: 'ready',
+                status: '就绪',
                 usage: usageFrom(r.info ?? null)
               })
               setTimeout(() => scrollRef.current?.scrollToBottom(), 0)
             })
             .catch((e: Error) => {
               sys(`error: ${e.message}`)
-              patchUiState({ status: 'ready' })
+              patchUiState({ status: '就绪' })
             })
         )
       })

@@ -21,7 +21,7 @@ const buildUiState = (): UiState => ({
   showCost: false,
   showReasoning: false,
   sid: null,
-  status: 'summoning hermes…',
+  status: '正在启动 Hermes…',
   statusBar: 'top',
   streaming: true,
   theme: DEFAULT_THEME,

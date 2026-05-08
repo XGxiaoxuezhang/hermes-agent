@@ -222,7 +222,7 @@ class TurnController {
 
     this.statusTimer = setTimeout(() => {
       this.statusTimer = null
-      patchUiState({ status: 'ready' })
+      patchUiState({ status: '就绪' })
     }, INTERRUPT_COOLDOWN_MS)
   }
 

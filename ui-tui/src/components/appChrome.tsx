@@ -152,6 +152,33 @@ function ctxBar(pct: number | undefined, w = 10) {
   return '█'.repeat(filled) + '░'.repeat(w - filled)
 }
 
+function displayStatus(status: string) {
+  switch (status) {
+    case 'ready':
+      return '就绪'
+    case 'running…':
+      return '运行中…'
+    case 'interrupted':
+      return '已中断'
+    case 'setup required':
+      return '需要配置'
+    case 'setup running…':
+      return '正在配置…'
+    case 'resuming…':
+      return '正在恢复…'
+    case 'resuming most recent…':
+      return '正在恢复最近会话…'
+    case 'forging session…':
+      return '正在创建会话…'
+    case 'starting agent…':
+      return '正在启动智能体…'
+    case 'summoning hermes…':
+      return '正在启动 Hermes…'
+    default:
+      return status
+  }
+}
+
 function SpawnHud({ t }: { t: Theme }) {
   // Tight HUD that only appears when the session is actually fanning out.
   // Colour escalates to warn/error as depth or concurrency approaches the cap.
@@ -309,7 +336,7 @@ export function StatusRule({
           {busy ? (
             <FaceTicker color={statusColor} startedAt={turnStartedAt} />
           ) : (
-            <Text color={statusColor}>{status}</Text>
+            <Text color={statusColor}>{displayStatus(status)}</Text>
           )}
           <Text color={t.color.muted}> │ {modelLabel(model, modelReasoningEffort, modelFast)}</Text>
           {ctxLabel ? <Text color={t.color.muted}> │ {ctxLabel}</Text> : null}
