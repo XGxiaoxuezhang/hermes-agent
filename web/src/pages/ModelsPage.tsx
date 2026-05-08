@@ -5,12 +5,14 @@ import {
   Cpu,
   DollarSign,
   Eye,
+  KeyRound,
   RefreshCw,
   Settings2,
   Star,
   Wrench,
   Zap,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import type {
   AuxiliaryModelsResponse,
@@ -457,6 +459,7 @@ function ModelSettingsPanel({
   const [expanded, setExpanded] = useState(false);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
+  const { t } = useI18n();
 
   const mainProv = aux?.main.provider ?? "";
   const mainModel = aux?.main.model ?? "";
@@ -477,7 +480,7 @@ function ModelSettingsPanel({
   };
 
   const resetAllAux = async () => {
-    if (!window.confirm("Reset every auxiliary task to 'auto'? This overrides any per-task overrides you've set.")) {
+    if (!window.confirm(t.models.resetAllConfirm)) {
       return;
     }
     setResetBusy(true);
@@ -500,9 +503,9 @@ function ModelSettingsPanel({
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <Settings2 className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-sm">Model Settings</CardTitle>
+            <CardTitle className="text-sm">{t.models.modelSettings}</CardTitle>
             <span className="text-[10px] text-muted-foreground">
-              applies to new sessions
+              {t.models.appliesToNewSessions}
             </span>
           </div>
           <Button
@@ -511,7 +514,7 @@ function ModelSettingsPanel({
             onClick={() => setExpanded((v) => !v)}
             className="text-xs"
           >
-            {expanded ? "Hide auxiliary" : "Show auxiliary"}
+            {expanded ? t.models.hideAuxiliary : t.models.showAuxiliary}
             <ChevronDown
               className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`}
             />
@@ -526,13 +529,13 @@ function ModelSettingsPanel({
             <div className="flex items-center gap-2 mb-0.5">
               <Star className="h-3 w-3 text-primary" />
               <span className="text-xs font-medium uppercase tracking-wider">
-                Main model
+                {t.models.mainModel}
               </span>
             </div>
             <div className="text-xs font-mono text-muted-foreground truncate">
-              {mainProv || "(unset)"}
+              {mainProv || `(${t.models.unset})`}
               {mainProv && mainModel && " · "}
-              {mainModel || "(unset)"}
+              {mainModel || `(${t.models.unset})`}
             </div>
           </div>
           <Button
@@ -540,7 +543,7 @@ function ModelSettingsPanel({
             onClick={() => setPicker({ kind: "main" })}
             className="text-xs"
           >
-            Change
+            {t.models.change}
           </Button>
         </div>
 
@@ -549,7 +552,7 @@ function ModelSettingsPanel({
           <div className="space-y-1 border-t border-border/50 pt-3">
             <div className="flex items-center justify-between pb-1">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Auxiliary tasks
+                {t.models.auxiliaryTasks}
               </div>
               <Button
                 size="sm"
@@ -559,46 +562,43 @@ function ModelSettingsPanel({
                 className="text-[10px] h-6"
                 prefix={resetBusy ? <Spinner /> : null}
               >
-                Reset all to auto
+                {t.models.resetAllToAuto}
               </Button>
             </div>
 
             <p className="text-[10px] text-muted-foreground/80 pb-2">
-              Auxiliary tasks handle side-jobs like vision, session search, and
-              compression. <span className="font-mono">auto</span> means
-              &quot;use the main model&quot;. Override per-task when you want a
-              cheap/fast model for a specific job.
+              {t.models.auxiliaryDescription}
             </p>
 
-            {AUX_TASKS.map((t) => {
-              const cur = aux?.tasks.find((a) => a.task === t.key);
+            {AUX_TASKS.map((task) => {
+              const cur = aux?.tasks.find((a) => a.task === task.key);
               const isAuto =
                 !cur || cur.provider === "auto" || !cur.provider;
               return (
                 <div
-                  key={t.key}
+                  key={task.key}
                   className="flex items-center justify-between gap-3 px-3 py-1.5 border border-border/30 bg-card/50 hover:bg-muted/20 transition-colors"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-xs font-medium">{t.label}</span>
+                      <span className="text-xs font-medium">{task.label}</span>
                       <span className="text-[10px] text-muted-foreground/60">
-                        {t.hint}
+                        {task.hint}
                       </span>
                     </div>
                     <div className="text-[10px] font-mono text-muted-foreground truncate">
                       {isAuto
-                        ? "auto (use main model)"
-                        : `${cur?.provider} · ${cur?.model || "(provider default)"}`}
+                        ? t.models.autoUseMainModel
+                        : `${cur?.provider} · ${cur?.model || `(${t.models.providerDefault})`}`}
                     </div>
                   </div>
                   <Button
                     size="sm"
                     outlined
-                    onClick={() => setPicker({ kind: "aux", task: t.key })}
+                    onClick={() => setPicker({ kind: "aux", task: task.key })}
                     className="text-[10px] h-6"
                   >
-                    Change
+                    {t.models.change}
                   </Button>
                 </div>
               );
@@ -613,11 +613,12 @@ function ModelSettingsPanel({
             alwaysGlobal
             title={
               picker.kind === "main"
-                ? "Set Main Model"
-                : `Set Auxiliary: ${
+                ? t.models.setMainModel
+                : t.models.setAuxiliary.replace(
+                    "{task}",
                     AUX_TASKS.find((t) => t.key === picker.task)?.label ??
-                    picker.task
-                  }`
+                      picker.task,
+                  )
             }
             onApply={async ({ provider, model }) => {
               await applyAssignment({
@@ -647,6 +648,7 @@ export default function ModelsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saveKey, setSaveKey] = useState(0);
   const { t } = useI18n();
+  const navigate = useNavigate();
   const { setAfterTitle, setEnd } = usePageHeader();
 
   const load = useCallback(() => {
@@ -724,6 +726,29 @@ export default function ModelsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PluginSlot name="models:top" />
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t.models.credentialsCtaTitle}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t.models.credentialsCtaBody}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => navigate("/env")}
+            prefix={<KeyRound />}
+            className="shrink-0"
+          >
+            {t.models.configureApiKeys}
+          </Button>
+        </CardContent>
+      </Card>
 
       <ModelSettingsPanel
         aux={aux}

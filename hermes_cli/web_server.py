@@ -47,7 +47,7 @@ from hermes_cli.config import (
     check_config_version,
     redact_key,
 )
-from gateway.status import get_running_pid, read_runtime_status
+from gateway.status import _pid_exists, get_running_pid, read_runtime_status
 
 try:
     from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -478,7 +478,7 @@ except (ValueError, TypeError):
 # config surface.
 
 
-def _probe_gateway_health() -> tuple[bool, dict | None]:
+def _probe_gateway_health(base_url: str | None = None) -> tuple[bool, dict | None]:
     """Probe the gateway via its HTTP health endpoint (cross-container).
 
     .. deprecated::
@@ -497,12 +497,13 @@ def _probe_gateway_health() -> tuple[bool, dict | None]:
 
     This is a **blocking** call — run via ``run_in_executor`` from async code.
     """
-    if not _GATEWAY_HEALTH_URL:
+    health_url = base_url or _GATEWAY_HEALTH_URL
+    if not health_url:
         return False, None
 
     # Normalise to base URL so we always probe the right paths regardless of
     # whether the user included /health or /health/detailed in the env var.
-    base = _GATEWAY_HEALTH_URL.rstrip("/")
+    base = health_url.rstrip("/")
     if base.endswith("/health/detailed"):
         base = base[: -len("/health/detailed")]
     elif base.endswith("/health"):
@@ -532,10 +533,18 @@ async def get_status():
     gateway_running = gateway_pid is not None
     remote_health_body: dict | None = None
 
-    if not gateway_running and _GATEWAY_HEALTH_URL:
+    runtime = read_runtime_status()
+    if not gateway_running and runtime:
+        runtime_pid = runtime.get("pid")
+        if isinstance(runtime_pid, int) and _pid_exists(runtime_pid):
+            gateway_running = True
+            gateway_pid = runtime_pid
+
+    health_url = _GATEWAY_HEALTH_URL or "http://127.0.0.1:8642"
+    if not gateway_running:
         loop = asyncio.get_event_loop()
         alive, remote_health_body = await loop.run_in_executor(
-            None, _probe_gateway_health
+            None, _probe_gateway_health, health_url
         )
         if alive:
             gateway_running = True
@@ -560,7 +569,6 @@ async def get_status():
 
     # Prefer the detailed health endpoint response (has full state) when the
     # local runtime status file is absent or stale (cross-container).
-    runtime = read_runtime_status()
     if runtime is None and remote_health_body and remote_health_body.get("gateway_state"):
         runtime = remote_health_body
 
@@ -617,7 +625,7 @@ async def get_status():
         "latest_config_version": latest_ver,
         "gateway_running": gateway_running,
         "gateway_pid": gateway_pid,
-        "gateway_health_url": _GATEWAY_HEALTH_URL,
+        "gateway_health_url": health_url if gateway_running else _GATEWAY_HEALTH_URL,
         "gateway_state": gateway_state,
         "gateway_platforms": gateway_platforms,
         "gateway_exit_reason": gateway_exit_reason,
