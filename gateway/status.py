@@ -24,6 +24,7 @@ from typing import Any, Optional
 from utils import atomic_json_write
 
 if sys.platform == "win32":
+    import ctypes
     import msvcrt
 else:
     import fcntl
@@ -39,6 +40,42 @@ _gateway_lock_handle = None
 # past the JSON payload so runtime status / PID readers can still read the file
 # while another process holds the mutual-exclusion lock.
 _WINDOWS_LOCK_OFFSET = 1024 * 1024
+
+
+def _pid_exists(pid: int) -> bool:
+    """Return True when ``pid`` refers to a live process.
+
+    ``os.kill(pid, 0)`` is the usual POSIX probe, but on Windows CPython calls
+    TerminateProcess even for signal 0 and raises WinError 87 for live PIDs.
+    Use the Win32 process query API there instead.
+    """
+    if pid <= 0:
+        return False
+    if _IS_WINDOWS:
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+        if not handle:
+            # Access denied still means a process exists; invalid parameter /
+            # not found means it does not. GetLastError() == 5 is access denied.
+            return kernel32.GetLastError() == 5
+        try:
+            exit_code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return True
+            return exit_code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
 
 
 def _get_pid_path() -> Path:
@@ -161,7 +198,7 @@ def _record_looks_like_gateway(record: dict[str, Any]) -> bool:
     if not isinstance(argv, list) or not argv:
         return False
 
-    cmdline = " ".join(str(part) for part in argv)
+    cmdline = " ".join(str(part) for part in argv).replace("\\", "/")
     patterns = (
         "hermes_cli.main gateway",
         "hermes_cli/main.py gateway",
@@ -503,10 +540,7 @@ def acquire_scoped_lock(scope: str, identity: str, metadata: Optional[dict[str, 
 
         stale = existing_pid is None
         if not stale:
-            try:
-                os.kill(existing_pid, 0)
-            except (ProcessLookupError, PermissionError, OSError):
-                # Windows raises OSError with WinError 87 for invalid pid check
+            if not _pid_exists(existing_pid):
                 stale = True
             else:
                 current_start = _get_process_start_time(existing_pid)
@@ -824,20 +858,7 @@ def get_running_pid(
         if pid is None:
             continue
 
-        try:
-            os.kill(pid, 0)  # signal 0 = existence check, no actual signal sent
-        except ProcessLookupError:
-            continue
-        except PermissionError:
-            # The process exists but belongs to another user/service scope.
-            # With the runtime lock still held, prefer keeping it visible
-            # rather than deleting the PID file as "stale".
-            if _record_looks_like_gateway(record):
-                return pid
-            continue
-        except OSError:
-            # Windows raises OSError with WinError 87 for an invalid pid
-            # (process is definitely gone). Treat as "process doesn't exist".
+        if not _pid_exists(pid):
             continue
 
         recorded_start = record.get("start_time")
