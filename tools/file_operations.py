@@ -26,6 +26,7 @@ Usage:
 """
 
 import os
+import platform
 import re
 import difflib
 from abc import ABC, abstractmethod
@@ -40,6 +41,19 @@ from agent.file_safety import (
     get_safe_write_root as _shared_get_safe_write_root,
     is_write_denied as _shared_is_write_denied,
 )
+
+_IS_WINDOWS = platform.system() == "Windows"
+
+
+def _windows_path_to_git_bash(path: str) -> str:
+    if not (_IS_WINDOWS and path):
+        return path
+    match = re.match(r"^([a-zA-Z]):[\\/]*(.*)$", path)
+    if not match:
+        return path
+    drive = match.group(1).lower()
+    rest = match.group(2).replace("\\", "/")
+    return f"/{drive}/{rest}" if rest else f"/{drive}"
 
 
 # ---------------------------------------------------------------------------
@@ -597,6 +611,7 @@ class ShellFileOperations(FileOperations):
     
     def _escape_shell_arg(self, arg: str) -> str:
         """Escape a string for safe use in shell commands."""
+        arg = _windows_path_to_git_bash(arg)
         # Use single quotes and escape any single quotes in the string
         return "'" + arg.replace("'", "'\"'\"'") + "'"
     

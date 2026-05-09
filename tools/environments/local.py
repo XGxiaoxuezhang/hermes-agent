@@ -29,6 +29,8 @@ def _resolve_safe_cwd(cwd: str) -> str:
     raises ``FileNotFoundError`` before bash starts, wedging every subsequent
     terminal call until the gateway restarts.
     """
+    if _IS_WINDOWS:
+        cwd = _git_bash_path_to_windows(cwd)
     if cwd and os.path.isdir(cwd):
         return cwd
     parent = os.path.dirname(cwd) if cwd else ""
@@ -189,17 +191,34 @@ def _find_bash() -> str:
     if custom and os.path.isfile(custom):
         return custom
 
-    found = shutil.which("bash")
-    if found:
-        return found
-
-    for candidate in (
+    candidates = [
         os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Git", "bin", "bash.exe"),
         os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "Git", "bin", "bash.exe"),
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Git", "bin", "bash.exe"),
-    ):
+    ]
+
+    git_exe = shutil.which("git")
+    if git_exe:
+        # Git for Windows usually exposes git.exe from <root>\cmd\git.exe.
+        # Derive <root>\bin\bash.exe so installations outside Program Files
+        # (for example D:\soft\Git) are discovered without using WSL's bash.
+        git_path = os.path.abspath(git_exe)
+        git_root = os.path.dirname(os.path.dirname(git_path))
+        candidates.append(os.path.join(git_root, "bin", "bash.exe"))
+
+    for candidate in candidates:
         if candidate and os.path.isfile(candidate):
             return candidate
+
+    found = shutil.which("bash")
+    if found:
+        normalized = os.path.normcase(os.path.abspath(found))
+        wsl_launchers = (
+            os.path.normcase(os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "System32", "bash.exe")),
+            os.path.normcase(os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WindowsApps", "bash.exe")),
+        )
+        if normalized not in wsl_launchers:
+            return found
 
     raise RuntimeError(
         "Git Bash not found. Hermes Agent requires Git for Windows on Windows.\n"
@@ -210,6 +229,34 @@ def _find_bash() -> str:
 
 # Backward compat — process_registry.py imports this name
 _find_shell = _find_bash
+
+
+def _windows_path_to_git_bash(path: str) -> str:
+    """Convert native Windows drive paths to Git Bash paths.
+
+    Git Bash runs on native Windows but expects POSIX-looking drive paths in
+    shell scripts.  Keep conversion local to command execution; Python APIs
+    and user-facing text can continue using normal Windows paths.
+    """
+    if not (_IS_WINDOWS and path):
+        return path
+    match = re.match(r"^([a-zA-Z]):[\\/]*(.*)$", path)
+    if not match:
+        return path
+    drive = match.group(1).lower()
+    rest = match.group(2).replace("\\", "/")
+    return f"/{drive}/{rest}" if rest else f"/{drive}"
+
+
+def _git_bash_path_to_windows(path: str) -> str:
+    if not (_IS_WINDOWS and path):
+        return path
+    match = re.match(r"^/([a-zA-Z])(?:/(.*))?$", path)
+    if not match:
+        return path
+    drive = match.group(1).upper()
+    rest = (match.group(2) or "").replace("/", "\\")
+    return f"{drive}:\\" + rest if rest else f"{drive}:\\"
 
 
 # Standard PATH entries for environments with minimal PATH.
@@ -372,6 +419,9 @@ class LocalEnvironment(BaseEnvironment):
 
         return "/tmp"
 
+    def _quote_cwd_for_cd(self, cwd: str) -> str:
+        return super()._quote_cwd_for_cd(_windows_path_to_git_bash(cwd))
+
     def _run_bash(self, cmd_string: str, *, login: bool = False,
                   timeout: int = 120,
                   stdin_data: str | None = None) -> subprocess.Popen:
@@ -513,7 +563,7 @@ class LocalEnvironment(BaseEnvironment):
         """
         try:
             with open(self._cwd_file) as f:
-                cwd_path = f.read().strip()
+                cwd_path = _git_bash_path_to_windows(f.read().strip())
             if cwd_path and os.path.isdir(cwd_path):
                 self.cwd = cwd_path
         except (OSError, FileNotFoundError):
@@ -521,6 +571,7 @@ class LocalEnvironment(BaseEnvironment):
 
         # Still strip the marker from output so it's not visible
         self._extract_cwd_from_output(result)
+        self.cwd = _git_bash_path_to_windows(self.cwd)
 
     def cleanup(self):
         """Clean up temp files."""

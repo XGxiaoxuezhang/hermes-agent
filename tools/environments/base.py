@@ -338,7 +338,7 @@ class BaseEnvironment(ABC):
         # Restore configured cwd after login shell profile scripts, which may
         # change the working directory (e.g. bashrc `cd ~`).  Without this,
         # pwd -P captures the profile's directory, not terminal.cwd.
-        _quoted_cwd = shlex.quote(self.cwd)
+        _quoted_cwd = self._quote_cwd_for_cd(self.cwd)
         bootstrap = (
             f"export -p > {self._snapshot_path}\n"
             f"declare -f | grep -vE '^_[^_]' >> {self._snapshot_path}\n"

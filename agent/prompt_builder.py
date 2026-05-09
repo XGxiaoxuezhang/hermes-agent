@@ -545,9 +545,11 @@ WINDOWS_ENVIRONMENT_HINT = (
     "F:\\code\\hermes-agent when referring to local files. "
     "Do not translate Windows paths to /mnt/c, /mnt/d, /mnt/f, or other "
     "WSL mount paths unless the user explicitly says this task is running "
-    "inside WSL. Shell commands and tool calls execute in the configured "
-    "Windows environment, usually PowerShell, cmd, Git Bash, or native "
-    "Windows Python depending on the active tool."
+    "inside WSL. The terminal and file tools may execute through Git Bash "
+    "for POSIX command compatibility; Git Bash paths like /f/code refer to "
+    "the native Windows F:\\ drive and are not WSL paths. When running shell "
+    "commands, use F:/code or /f/code if a command cannot parse F:\\code, "
+    "but explain results to the user using normal Windows paths."
 )
 
 
