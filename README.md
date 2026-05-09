@@ -25,7 +25,7 @@ Hermes 本身运行不要求管理员权限。脚本会自动检查这些依赖�
 
 - Git for Windows: https://git-scm.com/download/win
 - Node.js 22 或更高版本: https://nodejs.org/
-- Python 3.11-3.13；脚本会优先使用 `py -3.13` 或 `py -3.11` 创建虚拟环境
+- Python 3.11-3.14；脚本会优先使用 `py -3.14`，没有时再退到 `py -3.13` 或 `py -3.11` 创建虚拟环境
 
 如果依赖包不支持用户级安装，`winget` 可能弹出管理员/UAC 请求。接受即可继续；如果你取消了，需要手动安装对应依赖后重跑。没有 `winget` 时脚本也会提示手动安装地址。
 
@@ -70,9 +70,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-local.ps1
 
 这个脚本会：
 
-- 检查并尽量自动安装 Git、Node.js、Python 3.13
+- 检查并尽量自动安装 Git、Node.js、Python 3.14
 - 创建或修复 `venv`
-- 自动避开 Python 3.14 的 `pywinpty` 兼容问题，使用 Python 3.13/3.11
+- 使用支持 Python 3.14 的 `pywinpty 3.x`，旧环境不兼容时会自动修复
 - 安装 `.[web,pty]`
 - 安装前端依赖
 - 构建网页资源
@@ -209,7 +209,7 @@ cd F:\code\hermes-agent
 powershell -ExecutionPolicy Bypass -File .\scripts\windows\run-dashboard.ps1
 ```
 
-### 安装时 Python 3.14 报 pywinpty 错误怎么办？
+### 安装时 Python / pywinpty 报错怎么办？
 
 直接重新跑：
 
@@ -217,7 +217,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\run-dashboard.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-local.ps1 -RecreateVenv
 ```
 
-脚本会重建 Python 3.13/3.11 的虚拟环境。
+脚本会重建 Python 3.11-3.14 的虚拟环境，并安装兼容的 Windows PTY 依赖。
 
 ## 上游 Hermes Agent 能力简介
 

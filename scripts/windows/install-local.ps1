@@ -96,6 +96,7 @@ function Test-CommandExitZero {
 
 function Test-CompatiblePython {
     if (Get-Command py -ErrorAction SilentlyContinue) {
+        if (Test-CommandExitZero "py" @("-3.14", "-c", "import sys")) { return $true }
         if (Test-CommandExitZero "py" @("-3.13", "-c", "import sys")) { return $true }
         if (Test-CommandExitZero "py" @("-3.11", "-c", "import sys")) { return $true }
     }
@@ -106,7 +107,7 @@ function Test-CompatiblePython {
         } catch {
             $version = ""
         }
-        if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.13") {
+        if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.14") {
             return $true
         }
     }
@@ -142,6 +143,10 @@ function New-HermesVenv {
     param([string]$VenvPath)
 
     if (Get-Command py -ErrorAction SilentlyContinue) {
+        & py -3.14 -m venv $VenvPath
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
         & py -3.13 -m venv $VenvPath
         if ($LASTEXITCODE -eq 0) {
             return
@@ -152,7 +157,7 @@ function New-HermesVenv {
         }
     }
 
-    Require-Command "python" "Install Python 3.11-3.13 or enable the py launcher."
+    Require-Command "python" "Install Python 3.11-3.14 or enable the py launcher."
     Invoke-Checked "python" "-m" "venv" $VenvPath
 }
 
@@ -217,7 +222,7 @@ Ensure-Command "git" "Git.Git" "https://git-scm.com/download/win"
 Ensure-Command "node" "OpenJS.NodeJS.LTS" "https://nodejs.org/"
 
 if (-not (Test-CompatiblePython)) {
-    Install-WithWinget "Python 3.13" "Python.Python.3.13" "https://www.python.org/downloads/"
+    Install-WithWinget "Python 3.14" "Python.Python.3.14" "https://www.python.org/downloads/"
 }
 
 if ($RecreateVenv -and (Test-Path $venv)) {
@@ -229,8 +234,8 @@ if ($RecreateVenv -and (Test-Path $venv)) {
 
 if ((Test-Path $python) -and -not $RecreateVenv) {
     $version = Get-PythonVersionText $python
-    if ($version -and ([version]$version -lt [version]"3.11" -or [version]$version -gt [version]"3.13")) {
-        Write-Step "Existing venv uses Python $version; recreating with Python 3.11-3.13 for Windows PTY support"
+    if ($version -and ([version]$version -lt [version]"3.11" -or [version]$version -gt [version]"3.14")) {
+        Write-Step "Existing venv uses Python $version; recreating with Python 3.11-3.14 for Windows PTY support"
         Stop-DashboardPort $Port
         Stop-VenvPython $venv
         Remove-DirectoryWithRetry $venv
