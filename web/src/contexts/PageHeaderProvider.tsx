@@ -52,8 +52,8 @@ export function PageHeaderProvider({
           className={cn(
             "z-1 w-full shrink-0",
             "box-border h-14 min-h-14",
-            "border-b border-current/20",
-            "bg-background-base/40 backdrop-blur-sm",
+            "border-b border-current/12",
+            "bg-background-base/55 shadow-[0_1px_0_color-mix(in_srgb,var(--midground-base)_10%,transparent)] backdrop-blur-xl",
             "overflow-hidden",
             "sm:min-h-0",
           )}
@@ -69,7 +69,7 @@ export function PageHeaderProvider({
           >
             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
               <h1
-                className="font-expanded min-w-0 truncate text-sm font-bold tracking-[0.08em] text-midground"
+                className="min-w-0 truncate text-sm font-semibold tracking-normal text-midground"
                 style={{ mixBlendMode: "plus-lighter" }}
               >
                 {displayTitle}

@@ -416,7 +416,7 @@ export default function App() {
   return (
     <div
       data-layout-variant={layoutVariant}
-      className="font-mondwest flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-black uppercase text-midground antialiased"
+      className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-background text-midground antialiased"
     >
       <SelectionSwitcher />
       <Backdrop />
@@ -427,13 +427,8 @@ export default function App() {
           "lg:hidden fixed top-0 left-0 right-0 z-40 h-12",
           "flex items-center gap-2 px-3",
           "border-b border-current/20",
-          "bg-background-base/90 backdrop-blur-sm",
+          "bg-background-base/85 shadow-[0_1px_0_color-mix(in_srgb,var(--midground-base)_14%,transparent)] backdrop-blur-xl",
         )}
-        style={{
-          background: "var(--component-header-background)",
-          borderImage: "var(--component-header-border-image)",
-          clipPath: "var(--component-header-clip-path)",
-        }}
       >
         <Button
           ghost
@@ -448,7 +443,7 @@ export default function App() {
         </Button>
 
         <Typography
-          className="font-bold text-[0.95rem] leading-[0.95] tracking-[0.05em] text-midground"
+          className="text-[0.95rem] font-semibold leading-none tracking-normal text-midground"
           style={{ mixBlendMode: "plus-lighter" }}
         >
           {t.app.brand}
@@ -476,18 +471,13 @@ export default function App() {
             aria-label={t.app.navigation}
             className={cn(
               "fixed top-0 left-0 z-50 flex h-dvh max-h-dvh w-64 min-h-0 flex-col",
-              "border-r border-current/20",
-              "bg-background-base/95 backdrop-blur-sm",
+              "border-r border-current/12",
+              "bg-background-base/88 shadow-[8px_0_32px_rgba(0,0,0,0.22)] backdrop-blur-xl",
               "transition-[width,transform] duration-200 ease-out",
               mobileOpen ? "translate-x-0" : "-translate-x-full",
               "lg:sticky lg:top-0 lg:translate-x-0 lg:shrink-0",
               sidebarCollapsed ? "lg:w-16" : "lg:w-64",
             )}
-            style={{
-              background: "var(--component-sidebar-background)",
-              clipPath: "var(--component-sidebar-clip-path)",
-              borderImage: "var(--component-sidebar-border-image)",
-            }}
           >
             <div
               className={cn(
@@ -505,7 +495,7 @@ export default function App() {
                 <PluginSlot name="header-left" />
 
                 <Typography
-                  className="font-bold text-[1.125rem] leading-[0.95] tracking-[0.0525rem] text-midground"
+                  className="text-[1rem] font-semibold leading-tight tracking-normal text-midground"
                   style={{ mixBlendMode: "plus-lighter" }}
                 >
                   Hermes
@@ -561,7 +551,7 @@ export default function App() {
                   <span
                     className={cn(
                       "px-5 pt-2.5 pb-1",
-                      "font-mondwest text-[0.6rem] tracking-[0.15em] uppercase opacity-30",
+                      "text-[0.68rem] font-semibold tracking-normal opacity-45",
                       sidebarCollapsed && "lg:hidden",
                     )}
                     id="hermes-sidebar-plugin-nav-heading"
@@ -618,7 +608,7 @@ export default function App() {
                 "relative z-2 flex min-w-0 min-h-0 flex-1 flex-col",
                 "px-3 sm:px-6",
                 isChatRoute
-                  ? "pb-3 pt-1 sm:pb-4 sm:pt-2 lg:pt-4"
+                  ? "px-0 pb-0 pt-0 sm:px-0 sm:pb-0 sm:pt-0 lg:pt-0"
                   : "pt-2 sm:pt-4 lg:pt-6 pb-4 sm:pb-8",
                 isDocsRoute && "min-h-0 flex-1",
               )}
@@ -700,16 +690,13 @@ function SidebarNavLink({ collapsed, closeMobile, item, t }: SidebarNavLinkProps
           cn(
             "group relative flex items-center gap-3",
             "px-5 py-2.5",
-            "font-mondwest text-[0.8rem] tracking-[0.12em]",
+            "text-[0.88rem] font-medium tracking-normal",
             "whitespace-nowrap transition-colors cursor-pointer",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-midground",
             isActive ? "text-midground" : "opacity-60 hover:opacity-100",
             collapsed && "lg:justify-center lg:px-0 lg:py-3",
           )
         }
-        style={{
-          clipPath: "var(--component-tab-clip-path)",
-        }}
       >
         {({ isActive }) => (
           <>
@@ -782,7 +769,7 @@ function SidebarSystemActions({
       <span
         className={cn(
           "px-5 pt-0.5 pb-0.5",
-          "font-mondwest text-[0.6rem] tracking-[0.15em] uppercase opacity-30",
+          "text-[0.68rem] font-semibold tracking-normal opacity-45",
           collapsed && "lg:hidden",
         )}
       >
@@ -810,7 +797,7 @@ function SidebarSystemActions({
                 title={collapsed ? displayLabel : undefined}
                 className={cn(
                   "gap-3 px-5 py-1.5 whitespace-nowrap",
-                  "font-mondwest text-[0.75rem] tracking-[0.1em]",
+                  "text-[0.82rem] font-medium tracking-normal",
                   "transition-opacity",
                   busy
                     ? "text-midground opacity-100"

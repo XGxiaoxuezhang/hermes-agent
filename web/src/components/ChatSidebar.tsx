@@ -297,13 +297,13 @@ export function ChatSidebar({ channel, className }: ChatSidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-full w-full min-w-0 shrink-0 flex-col gap-3 overflow-y-auto overflow-x-hidden pr-1 normal-case lg:w-80",
+        "flex h-full w-full min-w-0 shrink-0 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 normal-case",
         className,
       )}
     >
-      <Card className="flex items-center justify-between gap-2 px-3 py-2">
+      <Card className="flex items-start justify-between gap-3 rounded-md border-current/10 bg-midground/[0.035] px-3 py-3 shadow-none">
         <div className="min-w-0">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">
+          <div className="text-xs font-medium tracking-normal text-muted-foreground">
             {t.chatSidebar.currentModel}
           </div>
 
@@ -317,7 +317,7 @@ export function ChatSidebar({ channel, className }: ChatSidebarProps) {
                 <ChevronDown className="opacity-60" />
               ) : undefined
             }
-            className="self-start min-w-0 px-0 py-0 normal-case tracking-normal text-sm font-medium hover:underline disabled:no-underline"
+            className="mt-0.5 self-start min-w-0 px-0 py-0 text-sm font-semibold tracking-normal normal-case hover:underline disabled:no-underline"
             title={info.model ?? t.chatSidebar.switchModel}
           >
             <span className="truncate">{modelLabel}</span>
@@ -328,18 +328,20 @@ export function ChatSidebar({ channel, className }: ChatSidebarProps) {
             outlined
             disabled={!canPickModel}
             onClick={() => setModelOpen(true)}
-            className="mt-2"
+            className="mt-2 rounded-md normal-case tracking-normal"
             suffix={canPickModel ? <ChevronDown className="opacity-60" /> : undefined}
           >
             {t.chatSidebar.switchModel}
           </Button>
         </div>
 
-        <Badge tone={STATE_TONE[state]}>{t.chatSidebar.connection[state]}</Badge>
+        <Badge className="shrink-0 normal-case tracking-normal" tone={STATE_TONE[state]}>
+          {t.chatSidebar.connection[state]}
+        </Badge>
       </Card>
 
       {banner && (
-        <Card className="flex items-start gap-2 border-destructive/40 bg-destructive/5 px-3 py-2 text-xs">
+        <Card className="flex items-start gap-2 rounded-md border-destructive/30 bg-destructive/5 px-3 py-2 text-xs shadow-none">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
 
           <div className="min-w-0 flex-1">
@@ -349,7 +351,7 @@ export function ChatSidebar({ channel, className }: ChatSidebarProps) {
               <Button
                 size="sm"
                 outlined
-                className="mt-1"
+                className="mt-1 rounded-md normal-case tracking-normal"
                 onClick={reconnect}
                 prefix={<RefreshCw />}
               >
@@ -360,8 +362,8 @@ export function ChatSidebar({ channel, className }: ChatSidebarProps) {
         </Card>
       )}
 
-      <Card className="flex min-h-0 flex-none flex-col px-2 py-2">
-        <div className="px-1 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
+      <Card className="flex min-h-0 flex-none flex-col rounded-md border-current/10 bg-midground/[0.025] px-2 py-2 shadow-none">
+        <div className="px-1 pb-2 text-xs font-medium tracking-normal text-muted-foreground">
           {t.chatSidebar.tools}
         </div>
 

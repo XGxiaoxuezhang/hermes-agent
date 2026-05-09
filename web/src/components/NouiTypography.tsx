@@ -14,10 +14,10 @@ type TypographyProps = HTMLAttributes<HTMLElement> & {
 };
 
 const variantClasses: Record<NonNullable<TypographyProps["variant"]>, string> = {
-  sm: "leading-[1.4] text-[.9375rem] tracking-[0.1875rem]",
-  md: "text-[2.625rem] leading-[1] tracking-[0.0525rem]",
-  lg: "text-[2.625rem] leading-[1] tracking-[0.0525rem]",
-  xl: "text-[4.5rem] leading-[1] tracking-[0.135rem]",
+  sm: "text-sm leading-relaxed tracking-normal",
+  md: "text-2xl leading-tight tracking-normal",
+  lg: "text-3xl leading-tight tracking-normal",
+  xl: "text-5xl leading-none tracking-normal",
 };
 
 export const Typography = forwardRef<HTMLElement, TypographyProps>(function Typography(

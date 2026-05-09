@@ -112,6 +112,55 @@ const OVERRIDE_KEY_TO_VAR: Record<keyof ThemeColorOverrides, string> = {
  *  with more. */
 const ALL_OVERRIDE_VARS = Object.values(OVERRIDE_KEY_TO_VAR);
 
+const DESKTOP_REDESIGN_VARS: Record<string, string> = {
+  "--foreground": "color-mix(in srgb, #f4f0e8 100%, transparent)",
+  "--foreground-base": "#f4f0e8",
+  "--foreground-alpha": "1",
+  "--midground": "color-mix(in srgb, #e8e1d5 100%, transparent)",
+  "--midground-base": "#e8e1d5",
+  "--midground-alpha": "1",
+  "--background": "color-mix(in srgb, #0b0f10 100%, transparent)",
+  "--background-base": "#0b0f10",
+  "--background-alpha": "1",
+  "--warm-glow": "rgba(245, 185, 95, 0.18)",
+  "--noise-opacity-mul": "0",
+  "--theme-font-sans":
+    'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  "--theme-font-display": "var(--theme-font-sans)",
+  "--theme-base-size": "14px",
+  "--theme-line-height": "1.5",
+  "--theme-letter-spacing": "0",
+  "--radius": "0.625rem",
+  "--theme-radius": "0.625rem",
+  "--color-foreground": "var(--midground)",
+  "--color-card": "#111718",
+  "--color-card-foreground": "var(--midground)",
+  "--color-primary": "var(--midground)",
+  "--color-primary-foreground": "var(--background-base)",
+  "--color-secondary": "#172021",
+  "--color-secondary-foreground": "var(--midground)",
+  "--color-muted": "#182021",
+  "--color-muted-foreground": "color-mix(in srgb, var(--midground-base) 58%, transparent)",
+  "--color-accent": "#1b2727",
+  "--color-accent-foreground": "var(--midground)",
+  "--color-border": "color-mix(in srgb, var(--midground-base) 12%, transparent)",
+  "--color-input": "color-mix(in srgb, var(--midground-base) 14%, transparent)",
+  "--color-ring": "#5bddc4",
+  "--color-popover": "#121819",
+  "--color-popover-foreground": "var(--midground)",
+  "--component-card-clip-path": "none",
+  "--component-card-border-image": "none",
+  "--component-card-background": "initial",
+  "--component-card-box-shadow": "initial",
+  "--component-header-clip-path": "none",
+  "--component-header-border-image": "none",
+  "--component-header-background": "rgba(11, 15, 16, 0.72)",
+  "--component-sidebar-clip-path": "none",
+  "--component-sidebar-border-image": "none",
+  "--component-sidebar-background": "rgba(12, 17, 18, 0.92)",
+  "--component-tab-clip-path": "none",
+};
+
 function overrideVars(
   overrides: ThemeColorOverrides | undefined,
 ): Record<string, string> {
@@ -290,6 +339,10 @@ function applyTheme(theme: DashboardTheme) {
     ...componentMap,
   };
   for (const [k, v] of Object.entries(vars)) {
+    root.style.setProperty(k, v);
+  }
+
+  for (const [k, v] of Object.entries(DESKTOP_REDESIGN_VARS)) {
     root.style.setProperty(k, v);
   }
 

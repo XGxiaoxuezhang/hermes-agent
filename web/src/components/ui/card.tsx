@@ -15,36 +15,29 @@ import { cn } from "@/lib/utils";
  * CSS initial value, so the default shadcn-y card keeps looking normal
  * for themes that don't override anything.
  */
-const CARD_STYLE: React.CSSProperties = {
-  clipPath: "var(--component-card-clip-path)",
-  borderImage: "var(--component-card-border-image)",
-  background: "var(--component-card-background)",
-  boxShadow: "var(--component-card-box-shadow)",
-};
-
 export function Card({ className, style, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "border border-border bg-card/80 text-card-foreground w-full",
+        "w-full rounded-lg border border-border/80 bg-card/90 text-card-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]",
         className,
       )}
-      style={{ ...CARD_STYLE, ...style }}
+      style={style}
       {...props}
     />
   );
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex flex-col gap-1.5 p-4 border-b border-border", className)} {...props} />;
+  return <div className={cn("flex flex-col gap-1.5 border-b border-border/70 p-4", className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn("font-expanded text-sm font-bold tracking-[0.08em] uppercase blend-lighter", className)} {...props} />;
+  return <h3 className={cn("text-sm font-semibold tracking-normal text-foreground", className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("font-mondwest text-xs text-muted-foreground", className)} {...props} />;
+  return <p className={cn("text-xs leading-relaxed text-muted-foreground", className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
