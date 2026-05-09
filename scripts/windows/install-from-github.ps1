@@ -16,6 +16,11 @@ function Write-Step {
     Write-Host "=> $Message" -ForegroundColor Cyan
 }
 
+function Write-Warn {
+    param([string]$Message)
+    Write-Host "!! $Message" -ForegroundColor Yellow
+}
+
 function Invoke-Checked {
     param(
         [Parameter(Mandatory = $true)]
@@ -46,10 +51,14 @@ function Install-WithWinget {
         throw "$Name not found, and winget is unavailable. Install manually: $ManualUrl"
     }
 
-    Write-Step "Installing $Name with winget"
-    & winget install --id $WingetId --exact --accept-package-agreements --accept-source-agreements
+    Write-Step "Installing $Name with winget (user scope first)"
+    & winget install --id $WingetId --exact --scope user --accept-package-agreements --accept-source-agreements
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to install $Name with winget. Install manually: $ManualUrl"
+        Write-Warn "$Name user-scope install failed or is not supported. Trying default installer scope; this may show an administrator/UAC prompt."
+        & winget install --id $WingetId --exact --accept-package-agreements --accept-source-agreements
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install $Name with winget. If an administrator/UAC prompt appeared and was cancelled, accept it or install manually: $ManualUrl"
     }
     Refresh-Path
 }

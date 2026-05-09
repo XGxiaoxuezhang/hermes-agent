@@ -21,13 +21,13 @@
 
 ## 新机器一键安装
 
-脚本会自动检查这些依赖；缺失时会优先使用 `winget` 自动安装：
+Hermes 本身运行不要求管理员权限。脚本会自动检查这些依赖；缺失时会优先使用 `winget --scope user` 做用户级安装：
 
 - Git for Windows: https://git-scm.com/download/win
 - Node.js 22 或更高版本: https://nodejs.org/
 - Python 3.11-3.13；脚本会优先使用 `py -3.13` 或 `py -3.11` 创建虚拟环境
 
-如果系统没有 `winget`，脚本会提示你手动安装对应依赖后重跑。
+如果依赖包不支持用户级安装，`winget` 可能弹出管理员/UAC 请求。接受即可继续；如果你取消了，需要手动安装对应依赖后重跑。没有 `winget` 时脚本也会提示手动安装地址。
 
 然后在 PowerShell 里运行：
 
