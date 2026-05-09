@@ -80,6 +80,44 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-local.ps1
 
 ## 日常启动
 
+后台启动 Dashboard：
+
+```powershell
+hermes-dashboard
+```
+
+后台启动后打开：
+
+```text
+http://127.0.0.1:9119
+```
+
+查看/停止后台 Dashboard：
+
+```powershell
+cd F:\code\hermes-agent
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\status-dashboard-background.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\stop-dashboard-background.ps1
+```
+
+开机登录后自动后台启动：
+
+```powershell
+cd F:\code\hermes-agent
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-dashboard-startup.ps1
+```
+
+取消自动后台启动：
+
+```powershell
+cd F:\code\hermes-agent
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\uninstall-dashboard-startup.ps1
+```
+
+这个默认是当前用户的计划任务，不需要管理员权限。真正注册成 Windows Service 通常需要管理员权限，二开版本没有把它作为默认安装方式。
+
+如果你想以前台方式运行，便于看日志：
+
 ```powershell
 cd F:\code\hermes-agent
 powershell -ExecutionPolicy Bypass -File .\scripts\windows\run-dashboard.ps1
@@ -104,6 +142,28 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\dev-dashboard.ps1
 - `5173`：Vite 前端开发服务器，仅用于热更新
 
 日常使用只需要 `9119`。
+
+## 命令行 `hermes`
+
+安装脚本会在用户目录创建命令 shim，并把它加入用户 PATH：
+
+```text
+%LOCALAPPDATA%\HermesAgent\bin
+```
+
+安装后可以直接在 PowerShell 里运行：
+
+```powershell
+hermes
+```
+
+这会启动 Hermes CLI/TUI。也可以用：
+
+```powershell
+hermes dashboard --port 9119 --tui
+```
+
+如果当前 PowerShell 还识别不到 `hermes`，关闭窗口重新打开一次即可。
 
 ## 模型和 API Key 配置
 

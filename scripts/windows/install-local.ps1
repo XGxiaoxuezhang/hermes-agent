@@ -208,6 +208,59 @@ function Remove-DirectoryWithRetry {
     }
 }
 
+function Add-UserPathEntry {
+    param([string]$PathEntry)
+    $current = [Environment]::GetEnvironmentVariable("Path", "User")
+    $parts = @()
+    if ($current) {
+        $parts = $current -split ";" | Where-Object { $_ }
+    }
+    $normalized = $PathEntry.TrimEnd("\")
+    $parts = @($parts | Where-Object { $_.TrimEnd("\") -ine $normalized })
+    $newPath = (@($PathEntry) + $parts) -join ";"
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+
+    $processParts = @()
+    if ($env:Path) {
+        $processParts = $env:Path -split ";" | Where-Object { $_ }
+    }
+    $processParts = @($processParts | Where-Object { $_.TrimEnd("\") -ine $normalized })
+    $env:Path = (@($PathEntry) + $processParts) -join ";"
+}
+
+function Install-CommandShims {
+    param(
+        [string]$RepoPath,
+        [string]$PythonPath
+    )
+
+    $binDir = Join-Path $env:LOCALAPPDATA "HermesAgent\bin"
+    if (-not (Test-Path $binDir)) {
+        New-Item -ItemType Directory -Path $binDir | Out-Null
+    }
+
+    $hermesCmd = Join-Path $binDir "hermes.cmd"
+    $dashboardCmd = Join-Path $binDir "hermes-dashboard.cmd"
+
+    $hermesContent = @"
+@echo off
+set "HERMES_REPO=$RepoPath"
+"$PythonPath" -m hermes_cli.main %*
+"@
+    Set-Content -Path $hermesCmd -Value $hermesContent -Encoding ASCII
+
+    $dashboardContent = @"
+@echo off
+set "HERMES_REPO=$RepoPath"
+powershell -ExecutionPolicy Bypass -File "$RepoPath\scripts\windows\start-dashboard-background.ps1" %*
+"@
+    Set-Content -Path $dashboardCmd -Value $dashboardContent -Encoding ASCII
+
+    Add-UserPathEntry $binDir
+    Write-Step "Installed command shims: hermes, hermes-dashboard"
+    Write-Host "   Current PowerShell can use them now; already-open terminals may need restart."
+}
+
 $repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $venv = Join-Path $repo "venv"
 $python = Join-Path $venv "Scripts\python.exe"
@@ -276,11 +329,16 @@ if (-not $SkipWebBuild) {
 
 Write-Step "Checking Hermes CLI"
 Invoke-Checked $python "-m" "hermes_cli.main" "--help" | Select-Object -First 1 | Out-Null
+Install-CommandShims (Resolve-Path $repo).Path (Resolve-Path $python).Path
 
 Write-Host ""
 Write-Host "Install complete." -ForegroundColor Green
 Write-Host "Start command:"
 Write-Host "  powershell -ExecutionPolicy Bypass -File .\scripts\windows\run-dashboard.ps1 -Port $Port" -ForegroundColor Yellow
+Write-Host "Background command:"
+Write-Host "  hermes-dashboard -Port $Port" -ForegroundColor Yellow
+Write-Host "CLI command:"
+Write-Host "  hermes" -ForegroundColor Yellow
 Write-Host ""
 
 if (-not $NoStart) {
