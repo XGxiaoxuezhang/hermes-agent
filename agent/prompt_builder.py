@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import sys
 import threading
 from collections import OrderedDict
 from pathlib import Path
@@ -538,16 +539,42 @@ WSL_ENVIRONMENT_HINT = (
     "the Windows username if needed."
 )
 
+WINDOWS_ENVIRONMENT_HINT = (
+    "You are running on native Windows, not WSL. "
+    "Use native Windows paths such as C:\\Users\\name\\project or "
+    "F:\\code\\hermes-agent when referring to local files. "
+    "Do not translate Windows paths to /mnt/c, /mnt/d, /mnt/f, or other "
+    "WSL mount paths unless the user explicitly says this task is running "
+    "inside WSL. Shell commands and tool calls execute in the configured "
+    "Windows environment, usually PowerShell, cmd, Git Bash, or native "
+    "Windows Python depending on the active tool."
+)
+
+
+def _current_working_directory_hint() -> str:
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        return ""
+    if not cwd:
+        return ""
+    return f"Current working directory: {cwd}"
+
 
 def build_environment_hints() -> str:
     """Return environment-specific guidance for the system prompt.
 
-    Detects WSL, and can be extended for Termux, Docker, etc.
+    Detects WSL/native Windows, and can be extended for Termux, Docker, etc.
     Returns an empty string when no special environment is detected.
     """
     hints: list[str] = []
     if is_wsl():
         hints.append(WSL_ENVIRONMENT_HINT)
+    elif sys.platform == "win32":
+        hints.append(WINDOWS_ENVIRONMENT_HINT)
+    cwd_hint = _current_working_directory_hint()
+    if cwd_hint and hints:
+        hints.append(cwd_hint)
     return "\n\n".join(hints)
 
 
