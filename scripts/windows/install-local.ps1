@@ -72,15 +72,40 @@ function Ensure-Command {
     }
 }
 
+function Test-CommandExitZero {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments
+    )
+    try {
+        $psi = [System.Diagnostics.ProcessStartInfo]::new()
+        $psi.FileName = $FilePath
+        foreach ($arg in $Arguments) {
+            $psi.ArgumentList.Add($arg)
+        }
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $process = [System.Diagnostics.Process]::Start($psi)
+        $process.WaitForExit()
+        return $process.ExitCode -eq 0
+    } catch {
+        return $false
+    }
+}
+
 function Test-CompatiblePython {
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3.13 -c "import sys" 2>$null
-        if ($LASTEXITCODE -eq 0) { return $true }
-        & py -3.11 -c "import sys" 2>$null
-        if ($LASTEXITCODE -eq 0) { return $true }
+        if (Test-CommandExitZero "py" @("-3.13", "-c", "import sys")) { return $true }
+        if (Test-CommandExitZero "py" @("-3.11", "-c", "import sys")) { return $true }
     }
     if (Get-Command python -ErrorAction SilentlyContinue) {
-        $version = (& python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null).Trim()
+        $version = ""
+        try {
+            $version = (& python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null).Trim()
+        } catch {
+            $version = ""
+        }
         if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.13") {
             return $true
         }
