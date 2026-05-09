@@ -29,14 +29,60 @@ function Invoke-Checked {
     }
 }
 
-function Require-Command {
+function Refresh-Path {
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machinePath;$userPath"
+}
+
+function Install-WithWinget {
     param(
         [string]$Name,
-        [string]$InstallHint
+        [string]$WingetId,
+        [string]$ManualUrl
     )
-    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "$Name not found. $InstallHint"
+
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        throw "$Name not found, and winget is unavailable. Install manually: $ManualUrl"
     }
+
+    Write-Step "Installing $Name with winget"
+    & winget install --id $WingetId --exact --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install $Name with winget. Install manually: $ManualUrl"
+    }
+    Refresh-Path
+}
+
+function Ensure-Command {
+    param(
+        [string]$Name,
+        [string]$WingetId,
+        [string]$ManualUrl
+    )
+    if (Get-Command $Name -ErrorAction SilentlyContinue) {
+        return
+    }
+    Install-WithWinget $Name $WingetId $ManualUrl
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "$Name was installed but is not visible on PATH yet. Restart PowerShell and re-run this installer."
+    }
+}
+
+function Test-CompatiblePython {
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        & py -3.13 -c "import sys" 2>$null
+        if ($LASTEXITCODE -eq 0) { return $true }
+        & py -3.11 -c "import sys" 2>$null
+        if ($LASTEXITCODE -eq 0) { return $true }
+    }
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        $version = (& python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null).Trim()
+        if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.13") {
+            return $true
+        }
+    }
+    return $false
 }
 
 Write-Host ""
@@ -46,8 +92,12 @@ Write-Host "Branch:     $Branch"
 Write-Host "InstallDir: $InstallDir"
 Write-Host ""
 
-Require-Command "git" "Install Git for Windows first: https://git-scm.com/download/win"
-Require-Command "node" "Install Node.js 22+ first: https://nodejs.org/"
+Ensure-Command "git" "Git.Git" "https://git-scm.com/download/win"
+Ensure-Command "node" "OpenJS.NodeJS.LTS" "https://nodejs.org/"
+
+if (-not (Test-CompatiblePython)) {
+    Install-WithWinget "Python 3.13" "Python.Python.3.13" "https://www.python.org/downloads/"
+}
 
 $parent = Split-Path -Parent $InstallDir
 if (-not (Test-Path $parent)) {

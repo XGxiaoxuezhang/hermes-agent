@@ -21,11 +21,13 @@
 
 ## 新机器一键安装
 
-先安装前置依赖：
+脚本会自动检查这些依赖；缺失时会优先使用 `winget` 自动安装：
 
 - Git for Windows: https://git-scm.com/download/win
 - Node.js 22 或更高版本: https://nodejs.org/
 - Python 3.11-3.13；脚本会优先使用 `py -3.13` 或 `py -3.11` 创建虚拟环境
+
+如果系统没有 `winget`，脚本会提示你手动安装对应依赖后重跑。
 
 然后在 PowerShell 里运行：
 
@@ -68,6 +70,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-local.ps1
 
 这个脚本会：
 
+- 检查并尽量自动安装 Git、Node.js、Python 3.13
 - 创建或修复 `venv`
 - 自动避开 Python 3.14 的 `pywinpty` 兼容问题，使用 Python 3.13/3.11
 - 安装 `.[web,pty]`
