@@ -77,9 +77,14 @@ try {
     }
     Write-Host ""
     if ($exitCode -eq 0) {
-        Read-Host "Update finished. Press Enter to close this window"
+        Write-Host "Update finished. Press any key to close this window"
     } else {
-        Read-Host "Update failed. Press Enter to close this window"
+        Write-Host "Update failed. Press any key to close this window"
+    }
+    try {
+        [void][System.Console]::ReadKey($true)
+    } catch {
+        Read-Host "Press Enter to close this window"
     }
 }
 

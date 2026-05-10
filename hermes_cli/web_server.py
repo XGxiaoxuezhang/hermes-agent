@@ -755,7 +755,6 @@ def _spawn_windows_installer_update(port: int, name: str) -> subprocess.Popen:
     cmd = [
         "powershell.exe",
         "-NoProfile",
-        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
