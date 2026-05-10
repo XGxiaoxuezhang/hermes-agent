@@ -45,7 +45,6 @@ import { PluginSlot } from "@/plugins";
 const PROVIDER_GROUPS: { prefix: string; name: string; priority: number }[] = [
   // Nous Portal first
   { prefix: "NOUS_", name: "Nous Portal", priority: 0 },
-  { prefix: "NEW_API_", name: "New API", priority: 1 },
   // Then alphabetical by display name
   { prefix: "ANTHROPIC_", name: "Anthropic", priority: 2 },
   { prefix: "DASHSCOPE_", name: "DashScope (Qwen)", priority: 3 },
@@ -65,6 +64,8 @@ const PROVIDER_GROUPS: { prefix: string; name: string; priority: number }[] = [
   { prefix: "OPENROUTER_", name: "OpenRouter", priority: 13 },
   { prefix: "XIAOMI_", name: "Xiaomi MiMo", priority: 14 },
 ];
+
+const NEW_API_PROVIDER_PRIORITY = 15;
 
 function getProviderGroup(key: string): string {
   for (const g of PROVIDER_GROUPS) {
@@ -483,17 +484,26 @@ function ProviderGroupCard({
 }
 
 function NewApiCredentialsCard({
+  envVars,
   onSaved,
   showToast,
 }: {
+  envVars: Record<string, EnvVarInfo>;
   onSaved(): void;
   showToast(message: string, type: "success" | "error"): void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const { t } = useI18n();
 
   const canSave = baseUrl.trim() && apiKey.trim() && !saving;
+  const newApiEntries = Object.entries(envVars).filter(([key]) =>
+    key.startsWith("NEW_API_"),
+  );
+  const configuredCount = newApiEntries.filter(([, info]) => info.is_set).length;
+  const hasAnyConfigured = configuredCount > 0;
 
   const save = async () => {
     if (!canSave) return;
@@ -516,47 +526,73 @@ function NewApiCredentialsCard({
   };
 
   return (
-    <Card>
-      <CardHeader className="border-b border-border bg-card">
-        <div className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-base">New API / OpenAI 兼容接口</CardTitle>
+    <div className="border border-border">
+      <ListItem
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        className="justify-between gap-3 px-4 py-3 hover:bg-primary/5"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          )}
+          <Zap className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="font-semibold text-sm tracking-wide">
+            New API / OpenAI 兼容接口
+          </span>
+          {hasAnyConfigured && (
+            <Badge tone="success" className="text-[0.6rem]">
+              {configuredCount} {t.common.set.toLowerCase()}
+            </Badge>
+          )}
         </div>
-        <CardDescription>
-          保存 New API 的 Base URL 和令牌；模型列表会在模型页通过 /v1/models 自动拉取。
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 py-4 md:grid-cols-[1.35fr_1fr_auto] md:items-end">
-        <label className="grid gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Base URL</span>
-          <Input
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://你的-new-api域名/v1"
-          />
-        </label>
-        <label className="grid gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">API Key</span>
-          <Input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-..."
-          />
-        </label>
-        <Button
-          type="button"
-          onClick={save}
-          disabled={!canSave}
-          prefix={saving ? <Spinner /> : <Save />}
-        >
-          保存凭据
-        </Button>
-        <p className="text-xs text-muted-foreground md:col-span-3">
-          保存后进入“模型”页，点主模型的“更改”，选择 New API 下自动发现的模型。
-        </p>
-      </CardContent>
-    </Card>
+        <span className="text-[0.65rem] text-muted-foreground/60">
+          {t.env.keysCount
+            .replace("{count}", String(Math.max(newApiEntries.length, 2)))
+            .replace("{s}", "s")}
+        </span>
+      </ListItem>
+
+      {expanded && (
+        <div className="border-t border-border px-4 py-3">
+          <p className="mb-3 text-xs text-muted-foreground">
+            保存 New API 的 Base URL 和令牌；模型列表会在模型页通过 /v1/models 自动拉取。
+          </p>
+          <div className="grid gap-3 md:grid-cols-[1.35fr_1fr_auto] md:items-end">
+            <label className="grid gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Base URL</span>
+              <Input
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://你的-new-api域名/v1"
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">API Key</span>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-..."
+              />
+            </label>
+            <Button
+              type="button"
+              onClick={save}
+              disabled={!canSave}
+              prefix={saving ? <Spinner /> : <Save />}
+            >
+              保存凭据
+            </Button>
+            <p className="text-xs text-muted-foreground md:col-span-3">
+              保存后进入“模型”页，点主模型的“更改”，选择 New API 下自动发现的模型。
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -689,8 +725,10 @@ export default function EnvPage() {
     if (!vars) return { providerGroups: [], nonProviderGrouped: [] };
 
     const providerEntries = Object.entries(vars).filter(
-      ([, info]) =>
-        info.category === "provider" && (showAdvanced || !info.advanced),
+      ([key, info]) =>
+        info.category === "provider" &&
+        !key.startsWith("NEW_API_") &&
+        (showAdvanced || !info.advanced),
     );
 
     // Group by provider
@@ -744,8 +782,20 @@ export default function EnvPage() {
     );
   }
 
-  const totalProviders = providerGroups.length;
-  const configuredProviders = providerGroups.filter((g) => g.hasAnySet).length;
+  const newApiEntries = Object.entries(vars).filter(([key]) =>
+    key.startsWith("NEW_API_"),
+  );
+  const newApiConfigured = newApiEntries.some(([, info]) => info.is_set);
+  const totalProviders = providerGroups.length + 1;
+  const configuredProviders =
+    providerGroups.filter((g) => g.hasAnySet).length +
+    (newApiConfigured ? 1 : 0);
+  const newApiInsertAfter =
+    providerGroups.find((g) => g.name === "Xiaomi MiMo")?.name ??
+    providerGroups
+      .filter((g) => g.priority < NEW_API_PROVIDER_PRIORITY)
+      .at(-1)?.name ??
+    null;
 
   const pendingClearKey = keyClear.pendingId;
   const pendingKeyDescription =
@@ -792,8 +842,6 @@ export default function EnvPage() {
         onSuccess={(msg) => showToast(msg, "success")}
       />
 
-      <NewApiCredentialsCard onSaved={reloadVars} showToast={showToast} />
-
       <Card>
         <CardHeader className="border-b border-border bg-card">
           <div className="flex items-center gap-2">
@@ -808,20 +856,35 @@ export default function EnvPage() {
         </CardHeader>
 
         <CardContent className="grid gap-0 p-0">
-          {providerGroups.map((group) => (
-            <ProviderGroupCard
-              key={group.name}
-              group={group}
-              edits={edits}
-              setEdits={setEdits}
-              revealed={revealed}
-              saving={saving}
-              onSave={handleSave}
-              onClear={keyClear.requestDelete}
-              onReveal={handleReveal}
-              onCancelEdit={cancelEdit}
-              clearDialogOpen={keyClear.isOpen}
+          {newApiInsertAfter === null && (
+            <NewApiCredentialsCard
+              envVars={vars}
+              onSaved={reloadVars}
+              showToast={showToast}
             />
+          )}
+          {providerGroups.map((group) => (
+            <div key={group.name}>
+              <ProviderGroupCard
+                group={group}
+                edits={edits}
+                setEdits={setEdits}
+                revealed={revealed}
+                saving={saving}
+                onSave={handleSave}
+                onClear={keyClear.requestDelete}
+                onReveal={handleReveal}
+                onCancelEdit={cancelEdit}
+                clearDialogOpen={keyClear.isOpen}
+              />
+              {group.name === newApiInsertAfter && (
+                <NewApiCredentialsCard
+                  envVars={vars}
+                  onSaved={reloadVars}
+                  showToast={showToast}
+                />
+              )}
+            </div>
           ))}
         </CardContent>
       </Card>
