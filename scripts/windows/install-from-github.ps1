@@ -6,6 +6,7 @@ param(
     [switch]$NoStart,
     [switch]$NoOpen,
     [switch]$SkipWebBuild,
+    [switch]$Background,
     [switch]$Force
 )
 
@@ -209,6 +210,9 @@ $installerArgs = @("-ExecutionPolicy", "Bypass", "-File", $localInstaller, "-Por
 if ($NoStart) {
     $installerArgs += "-NoStart"
 }
+if ($Background) {
+    $installerArgs += "-NoStart"
+}
 if ($NoOpen) {
     $installerArgs += "-NoOpen"
 }
@@ -217,3 +221,9 @@ if ($SkipWebBuild) {
 }
 
 Invoke-Checked "powershell" @installerArgs
+
+if ($Background -and -not $NoStart) {
+    Write-Step "Starting dashboard in background"
+    $backgroundScript = Join-Path $InstallDir "scripts\windows\start-dashboard-background.ps1"
+    Invoke-Checked "powershell" "-ExecutionPolicy" "Bypass" "-File" $backgroundScript "-Port" "$Port"
+}

@@ -687,6 +687,7 @@ def _spawn_action_command(cmd: List[str], name: str) -> subprocess.Popen:
         popen_kwargs["creationflags"] = (
             subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
             | getattr(subprocess, "DETACHED_PROCESS", 0)
+            | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         )
     else:
         popen_kwargs["start_new_session"] = True
@@ -737,7 +738,9 @@ def _spawn_windows_installer_update(port: int, name: str) -> subprocess.Popen:
         "https://github.com/XGxiaoxuezhang/hermes-agent.git",
     )
     cmd = [
-        "powershell",
+        "powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
@@ -751,6 +754,7 @@ def _spawn_windows_installer_update(port: int, name: str) -> subprocess.Popen:
         "-Port",
         str(port),
         "-NoOpen",
+        "-Background",
     ]
     return _spawn_action_command(cmd, name)
 
