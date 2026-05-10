@@ -34,6 +34,41 @@ function Invoke-Checked {
     }
 }
 
+function Stop-DashboardPort {
+    param([int]$ListenPort)
+    try {
+        $connections = Get-NetTCPConnection -LocalPort $ListenPort -State Listen -ErrorAction SilentlyContinue
+    } catch {
+        $connections = @()
+    }
+    foreach ($conn in $connections) {
+        if ($conn.OwningProcess) {
+            Write-Step "Stopping process $($conn.OwningProcess) on port $ListenPort"
+            Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Stop-RepoPythonProcesses {
+    param([string]$RepoPath)
+    $resolved = Resolve-Path $RepoPath -ErrorAction SilentlyContinue
+    if (-not $resolved) {
+        return
+    }
+    $prefix = $resolved.Path.ToLowerInvariant()
+    $processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "python*.exe" -or $_.Name -eq "node.exe" -or $_.Name -eq "cmd.exe" }
+    foreach ($proc in $processes) {
+        $cmd = [string]$proc.CommandLine
+        $exe = [string]$proc.ExecutablePath
+        $haystack = "$exe $cmd".ToLowerInvariant()
+        if ($haystack.Contains($prefix)) {
+            Write-Step "Stopping repo process $($proc.ProcessId) ($($proc.Name))"
+            Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Refresh-Path {
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -141,12 +176,14 @@ if (-not (Test-Path $parent)) {
 
 if (Test-Path (Join-Path $InstallDir ".git")) {
     Write-Step "Updating existing checkout"
+    Stop-DashboardPort $Port
+    Stop-RepoPythonProcesses $InstallDir
     Push-Location $InstallDir
     try {
         Invoke-Checked "git" "remote" "set-url" "origin" $RepoUrl
         Invoke-Checked "git" "fetch" "origin" $Branch
-        Invoke-Checked "git" "checkout" $Branch
-        Invoke-Checked "git" "pull" "--ff-only" "origin" $Branch
+        Invoke-Checked "git" "checkout" "-B" $Branch "origin/$Branch"
+        Invoke-Checked "git" "reset" "--hard" "origin/$Branch"
     } finally {
         Pop-Location
     }

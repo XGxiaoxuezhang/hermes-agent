@@ -183,10 +183,13 @@ function Stop-VenvPython {
         return
     }
     $prefix = $venvRoot.Path.ToLowerInvariant()
-    $processes = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue
+    $processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "python*.exe" }
     foreach ($proc in $processes) {
         $exe = [string]$proc.ExecutablePath
-        if ($exe -and $exe.ToLowerInvariant().StartsWith($prefix)) {
+        $cmd = [string]$proc.CommandLine
+        $haystack = "$exe $cmd".ToLowerInvariant()
+        if ($haystack.Contains($prefix)) {
             Write-Step "Stopping venv Python process $($proc.ProcessId)"
             Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
         }
@@ -303,6 +306,8 @@ if (-not (Test-Path $python)) {
 if (-not (Test-Path $python)) {
     throw "Failed to create virtual environment at $venv"
 }
+
+Stop-DashboardPort $Port
 
 Write-Step "Upgrading pip"
 Invoke-Checked $python "-m" "pip" "install" "--upgrade" "pip"
