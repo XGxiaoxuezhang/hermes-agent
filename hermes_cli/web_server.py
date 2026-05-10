@@ -793,7 +793,7 @@ async def update_hermes(request: Request):
     """Kick off a Hermes update in the background."""
     try:
         if sys.platform == "win32":
-            port = request.url.port or 9119
+            port = int(getattr(app.state, "bound_port", None) or request.url.port or 9119)
             proc = _spawn_windows_installer_update(port, "hermes-update")
         else:
             proc = _spawn_hermes_action(["update"], "hermes-update")
@@ -822,6 +822,11 @@ async def get_action_status(name: str, lines: int = 200):
         running = False
         exit_code: Optional[int] = None
         pid: Optional[int] = None
+        if name == "hermes-update" and any(
+            "Install complete." in line or "Hermes Dashboard started in background." in line
+            for line in tail
+        ):
+            exit_code = 0
     else:
         exit_code = proc.poll()
         running = exit_code is None

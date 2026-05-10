@@ -162,7 +162,17 @@ function New-HermesVenv {
 }
 
 function Stop-DashboardPort {
-    param([int]$ListenPort)
+    param(
+        [int]$ListenPort,
+        [string]$RepoPath = ""
+    )
+    $repoPrefix = ""
+    if ($RepoPath) {
+        $resolvedRepo = Resolve-Path $RepoPath -ErrorAction SilentlyContinue
+        if ($resolvedRepo) {
+            $repoPrefix = $resolvedRepo.Path.ToLowerInvariant()
+        }
+    }
     try {
         $connections = Get-NetTCPConnection -LocalPort $ListenPort -State Listen -ErrorAction SilentlyContinue
     } catch {
@@ -170,6 +180,15 @@ function Stop-DashboardPort {
     }
     foreach ($conn in $connections) {
         if ($conn.OwningProcess) {
+            $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess)" -ErrorAction SilentlyContinue
+            $cmd = [string]$proc.CommandLine
+            $exe = [string]$proc.ExecutablePath
+            $haystack = "$exe $cmd".ToLowerInvariant()
+            $looksLikeHermes = $haystack.Contains("hermes_cli.main") -or ($repoPrefix -and $haystack.Contains($repoPrefix))
+            if (-not $looksLikeHermes) {
+                Write-Warn "Port $ListenPort is used by process $($conn.OwningProcess), but it does not look like this Hermes install. Leaving it running."
+                continue
+            }
             Write-Step "Stopping process $($conn.OwningProcess) on port $ListenPort"
             Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
         }
@@ -282,7 +301,7 @@ if (-not (Test-CompatiblePython)) {
 }
 
 if ($RecreateVenv -and (Test-Path $venv)) {
-    Stop-DashboardPort $Port
+    Stop-DashboardPort $Port $repo
     Stop-VenvPython $venv
     Write-Step "Removing existing virtual environment"
     Remove-DirectoryWithRetry $venv
@@ -292,7 +311,7 @@ if ((Test-Path $python) -and -not $RecreateVenv) {
     $version = Get-PythonVersionText $python
     if ($version -and ([version]$version -lt [version]"3.11" -or [version]$version -gt [version]"3.14")) {
         Write-Step "Existing venv uses Python $version; recreating with Python 3.11-3.14 for Windows PTY support"
-        Stop-DashboardPort $Port
+        Stop-DashboardPort $Port $repo
         Stop-VenvPython $venv
         Remove-DirectoryWithRetry $venv
     }
@@ -307,7 +326,7 @@ if (-not (Test-Path $python)) {
     throw "Failed to create virtual environment at $venv"
 }
 
-Stop-DashboardPort $Port
+Stop-DashboardPort $Port $repo
 
 Write-Step "Upgrading pip"
 Invoke-Checked $python "-m" "pip" "install" "--upgrade" "pip"

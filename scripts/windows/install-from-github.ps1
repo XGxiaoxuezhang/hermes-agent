@@ -36,7 +36,17 @@ function Invoke-Checked {
 }
 
 function Stop-DashboardPort {
-    param([int]$ListenPort)
+    param(
+        [int]$ListenPort,
+        [string]$RepoPath = ""
+    )
+    $repoPrefix = ""
+    if ($RepoPath) {
+        $resolvedRepo = Resolve-Path $RepoPath -ErrorAction SilentlyContinue
+        if ($resolvedRepo) {
+            $repoPrefix = $resolvedRepo.Path.ToLowerInvariant()
+        }
+    }
     try {
         $connections = Get-NetTCPConnection -LocalPort $ListenPort -State Listen -ErrorAction SilentlyContinue
     } catch {
@@ -44,6 +54,15 @@ function Stop-DashboardPort {
     }
     foreach ($conn in $connections) {
         if ($conn.OwningProcess) {
+            $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess)" -ErrorAction SilentlyContinue
+            $cmd = [string]$proc.CommandLine
+            $exe = [string]$proc.ExecutablePath
+            $haystack = "$exe $cmd".ToLowerInvariant()
+            $looksLikeHermes = $haystack.Contains("hermes_cli.main") -or ($repoPrefix -and $haystack.Contains($repoPrefix))
+            if (-not $looksLikeHermes) {
+                Write-Warn "Port $ListenPort is used by process $($conn.OwningProcess), but it does not look like this Hermes install. Leaving it running."
+                continue
+            }
             Write-Step "Stopping process $($conn.OwningProcess) on port $ListenPort"
             Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
         }
@@ -177,7 +196,7 @@ if (-not (Test-Path $parent)) {
 
 if (Test-Path (Join-Path $InstallDir ".git")) {
     Write-Step "Updating existing checkout"
-    Stop-DashboardPort $Port
+    Stop-DashboardPort $Port $InstallDir
     Stop-RepoPythonProcesses $InstallDir
     Push-Location $InstallDir
     try {
