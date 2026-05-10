@@ -1166,6 +1166,7 @@ async def set_model_assignment(body: ModelAssignment):
 
 
 @app.post("/api/model/custom-openai-provider")
+@app.put("/api/model/custom-openai-provider")
 async def save_custom_openai_provider(body: CustomOpenAIProviderUpdate):
     """Save an OpenAI-compatible provider for later model selection.
 
@@ -1239,7 +1240,7 @@ async def save_custom_openai_provider(body: CustomOpenAIProviderUpdate):
     except HTTPException:
         raise
     except Exception:
-        _log.exception("POST /api/model/custom-openai-provider failed")
+        _log.exception("Save /api/model/custom-openai-provider failed")
         raise HTTPException(status_code=500, detail="Failed to save custom provider")
 
 
@@ -1328,12 +1329,13 @@ async def get_env_vars():
 
 
 @app.put("/api/env")
+@app.post("/api/env")
 async def set_env_var(body: EnvVarUpdate):
     try:
         save_env_value(body.key, body.value)
         return {"ok": True, "key": body.key}
     except Exception:
-        _log.exception("PUT /api/env failed")
+        _log.exception("Save /api/env failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
