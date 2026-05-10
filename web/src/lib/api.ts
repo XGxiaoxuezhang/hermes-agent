@@ -99,6 +99,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
+  saveCustomOpenAIProvider: (body: CustomOpenAIProviderRequest) =>
+    fetchJSON<CustomOpenAIProviderResponse>("/api/model/custom-openai-provider", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
   saveConfig: (config: Record<string, unknown>) =>
     fetchJSON<{ ok: boolean }>("/api/config", {
       method: "PUT",
@@ -659,6 +665,23 @@ export interface ModelAssignmentResponse {
   model?: string;
   tasks?: string[];
   reset?: boolean;
+}
+
+export interface CustomOpenAIProviderRequest {
+  slug?: string;
+  name?: string;
+  base_url: string;
+  api_key: string;
+  model: string;
+}
+
+export interface CustomOpenAIProviderResponse {
+  ok: boolean;
+  provider: string;
+  name: string;
+  base_url: string;
+  model: string;
+  key_env: string;
 }
 
 // ── OAuth provider types ────────────────────────────────────────────────

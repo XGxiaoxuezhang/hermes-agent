@@ -25,7 +25,10 @@ import { formatTokenCount } from "@/lib/format";
 import { Button } from "@nous-research/ui/ui/components/button";
 import { Spinner } from "@nous-research/ui/ui/components/spinner";
 import { Stats } from "@nous-research/ui/ui/components/stats";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Toast } from "@/components/Toast";
+import { useToast } from "@/hooks/useToast";
 import { Badge } from "@nous-research/ui/ui/components/badge";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { useI18n } from "@/i18n";
@@ -636,6 +639,95 @@ function ModelSettingsPanel({
   );
 }
 
+function NewApiProviderCard({
+  onSaved,
+  showToast,
+}: {
+  onSaved(): void;
+  showToast(message: string, type: "success" | "error"): void;
+}) {
+  const [baseUrl, setBaseUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const canSave = baseUrl.trim() && apiKey.trim() && model.trim() && !saving;
+
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      await api.saveCustomOpenAIProvider({
+        slug: "new-api",
+        name: "New API",
+        base_url: baseUrl.trim(),
+        api_key: apiKey.trim(),
+        model: model.trim(),
+      });
+      setApiKey("");
+      showToast("New API 已保存，并设为主模型", "success");
+      onSaved();
+    } catch (e) {
+      showToast(`保存 New API 失败：${e}`, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="border-b border-border">
+        <div className="flex items-center gap-2">
+          <Zap className="h-5 w-5 text-primary" />
+          <CardTitle className="text-base">New API / OpenAI 兼容接口</CardTitle>
+        </div>
+        <CardDescription>
+          填你的 New API 地址、令牌和模型名；保存后会写入 config.yaml 和 .env，并作为默认聊天模型。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 py-4 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end">
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Base URL</span>
+          <Input
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="https://你的-new-api域名/v1"
+          />
+        </label>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">API Key</span>
+          <Input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-..."
+          />
+        </label>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">模型名</span>
+          <Input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="gpt-4o / claude-3-5-sonnet"
+          />
+        </label>
+        <Button
+          type="button"
+          onClick={save}
+          disabled={!canSave}
+          prefix={saving ? <Spinner /> : <Settings2 />}
+          className="md:mb-0"
+        >
+          保存并启用
+        </Button>
+        <p className="text-xs text-muted-foreground md:col-span-4">
+          大多数 New API 面板填 <code>https://域名/v1</code>；模型名必须和 New API 渠道里可用的模型 ID 一致。
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ──────────────────────────────────────────────────────────────────── */
 /*  Page                                                                */
 /* ──────────────────────────────────────────────────────────────────── */
@@ -647,6 +739,7 @@ export default function ModelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveKey, setSaveKey] = useState(0);
+  const { toast, showToast } = useToast();
   const { t } = useI18n();
   const navigate = useNavigate();
   const { setAfterTitle, setEnd } = usePageHeader();
@@ -672,8 +765,9 @@ export default function ModelsPage() {
       .getAuxiliaryModels()
       .then(setAux)
       .catch(() => {});
+    showToast("模型配置已更新，新会话会使用新配置", "success");
     setSaveKey((k) => k + 1);
-  }, []);
+  }, [showToast]);
 
   useLayoutEffect(() => {
     const periodLabel =
@@ -726,6 +820,9 @@ export default function ModelsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PluginSlot name="models:top" />
+      <Toast toast={toast} />
+
+      <NewApiProviderCard onSaved={onAssigned} showToast={showToast} />
 
       <Card>
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
