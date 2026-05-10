@@ -152,10 +152,14 @@ def _check_via_rev(local_rev: str) -> Optional[int]:
 
 
 def _check_via_local_git(repo_dir: Path) -> Optional[int]:
-    """Count commits behind origin/main in a local checkout."""
+    """Count commits behind the current branch's tracking ref."""
+    tracking_ref = _current_tracking_ref(repo_dir)
+    if tracking_ref is None:
+        return None
+    remote = tracking_ref.split("/", 1)[0]
     try:
         subprocess.run(
-            ["git", "fetch", "origin", "--quiet"],
+            ["git", "fetch", remote, "--quiet"],
             capture_output=True, timeout=10,
             cwd=str(repo_dir),
         )
@@ -164,7 +168,7 @@ def _check_via_local_git(repo_dir: Path) -> Optional[int]:
 
     try:
         result = subprocess.run(
-            ["git", "rev-list", "--count", "HEAD..origin/main"],
+            ["git", "rev-list", "--count", f"HEAD..{tracking_ref}"],
             capture_output=True, text=True, timeout=5,
             cwd=str(repo_dir),
         )
@@ -180,7 +184,7 @@ def check_for_updates() -> Optional[int]:
 
     Two paths: if ``HERMES_REVISION`` is set (nix builds embed it), compare
     it to upstream main via ``git ls-remote``. Otherwise look for a local
-    git checkout and count commits behind ``origin/main``.
+    git checkout and count commits behind the current branch's tracking ref.
 
     Returns the number of commits behind, ``UPDATE_AVAILABLE_NO_COUNT`` (-1)
     if behind but the count is unknown, ``0`` if up-to-date, or ``None`` if
@@ -256,13 +260,58 @@ def _git_short_hash(repo_dir: Path, rev: str) -> Optional[str]:
     return value or None
 
 
+def _current_tracking_ref(repo_dir: Path) -> Optional[str]:
+    """Return the current branch's upstream ref, falling back to origin/branch."""
+    try:
+        branch_result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=str(repo_dir),
+        )
+        if branch_result.returncode != 0:
+            return None
+        branch = (branch_result.stdout or "").strip()
+        if not branch or branch == "HEAD":
+            return None
+
+        tracking_result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=str(repo_dir),
+        )
+        if tracking_result.returncode == 0:
+            tracking = (tracking_result.stdout or "").strip()
+            if "/" in tracking:
+                return tracking
+
+        fallback = f"origin/{branch}"
+        exists = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", fallback],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=str(repo_dir),
+        )
+        return fallback if exists.returncode == 0 else None
+    except Exception:
+        return None
+
+
 def get_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]:
     """Return upstream/local git hashes for the startup banner."""
     repo_dir = repo_dir or _resolve_repo_dir()
     if repo_dir is None:
         return None
 
-    upstream = _git_short_hash(repo_dir, "origin/main")
+    tracking_ref = _current_tracking_ref(repo_dir)
+    if tracking_ref is None:
+        return None
+
+    upstream = _git_short_hash(repo_dir, tracking_ref)
     local = _git_short_hash(repo_dir, "HEAD")
     if not upstream or not local:
         return None
@@ -270,7 +319,7 @@ def get_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]:
     ahead = 0
     try:
         result = subprocess.run(
-            ["git", "rev-list", "--count", "origin/main..HEAD"],
+            ["git", "rev-list", "--count", f"{tracking_ref}..HEAD"],
             capture_output=True,
             text=True,
             timeout=5,

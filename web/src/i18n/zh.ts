@@ -121,8 +121,8 @@ export const zh: Translations = {
     starting: "启动中",
     startedInBackground: "已在后台启动 — 请查看日志",
     stopped: "已停止",
-    updateHermes: "更新 Hermes",
-    updatingHermes: "正在更新 Hermes…",
+    updateHermes: "更新当前分支",
+    updatingHermes: "正在更新当前分支…",
     waitingForOutput: "等待输出…",
   },
 

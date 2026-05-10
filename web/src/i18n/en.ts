@@ -122,8 +122,8 @@ export const en: Translations = {
     starting: "Starting",
     startedInBackground: "Started in background — check logs for progress",
     stopped: "Stopped",
-    updateHermes: "Update Hermes",
-    updatingHermes: "Updating Hermes…",
+    updateHermes: "Update Branch",
+    updatingHermes: "Updating branch…",
     waitingForOutput: "Waiting for output…",
   },
 
