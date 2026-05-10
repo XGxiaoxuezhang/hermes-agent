@@ -5934,6 +5934,71 @@ def _kill_stale_dashboard_processes(
 _warn_stale_dashboard_processes = _kill_stale_dashboard_processes
 
 
+def _parse_github_remote(remote_url: Optional[str]) -> Optional[tuple[str, str]]:
+    """Return (owner, repo) for common GitHub remote URL formats."""
+    if not remote_url:
+        return None
+    value = remote_url.strip()
+    if value.startswith("git@github.com:"):
+        path = value.split(":", 1)[1]
+    else:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(value)
+        if parsed.netloc.lower() != "github.com":
+            return None
+        path = parsed.path.lstrip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+    parts = [p for p in path.split("/") if p]
+    if len(parts) < 2:
+        return None
+    return parts[0], parts[1]
+
+
+def _stop_processes_that_may_lock_update_files() -> None:
+    """Best-effort stop of long-running Hermes processes before ZIP replacement."""
+    print("→ Stopping running Hermes services before file replacement...")
+    try:
+        _kill_stale_dashboard_processes(reason="updating files")
+    except Exception as exc:
+        logger.debug("Could not stop dashboard processes before ZIP update: %s", exc)
+
+    try:
+        from hermes_cli.gateway import find_gateway_pids
+
+        pids = find_gateway_pids(exclude_pids={os.getpid()}, all_profiles=True)
+    except Exception as exc:
+        logger.debug("Could not find gateway processes before ZIP update: %s", exc)
+        pids = []
+
+    if not pids:
+        return
+
+    print(f"  Stopping {len(pids)} gateway process(es)...")
+    for pid in pids:
+        try:
+            if sys.platform == "win32":
+                result = subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/F"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if result.returncode == 0:
+                    print(f"    ✓ stopped gateway PID {pid}")
+                else:
+                    detail = (result.stderr or result.stdout or "").strip()
+                    print(f"    ✗ failed to stop gateway PID {pid}: {detail}")
+            else:
+                import signal as _signal
+
+                os.kill(pid, _signal.SIGTERM)
+                print(f"    ✓ stopped gateway PID {pid}")
+        except Exception as exc:
+            print(f"    ✗ failed to stop gateway PID {pid}: {exc}")
+
+
 def _update_via_zip(args):
     """Update Hermes Agent by downloading a ZIP archive.
 
@@ -5943,10 +6008,31 @@ def _update_via_zip(args):
     import tempfile
     import zipfile
     from urllib.request import urlretrieve
+    from urllib.parse import quote
 
     branch = "main"
+    repo_owner = "NousResearch"
+    repo_name = "hermes-agent"
+    git_dir = PROJECT_ROOT / ".git"
+    if git_dir.exists():
+        git_cmd = ["git"]
+        if sys.platform == "win32":
+            git_cmd = ["git", "-c", "windows.appendAtomically=false"]
+        try:
+            current_branch, _remote, remote_branch, _compare_ref = (
+                _resolve_current_update_target(git_cmd, PROJECT_ROOT)
+            )
+            branch = remote_branch or current_branch
+        except SystemExit:
+            branch = "main"
+        origin_url = _get_origin_url(git_cmd, PROJECT_ROOT)
+        parsed_repo = _parse_github_remote(origin_url)
+        if parsed_repo is not None:
+            repo_owner, repo_name = parsed_repo
+
     zip_url = (
-        f"https://github.com/NousResearch/hermes-agent/archive/refs/heads/{branch}.zip"
+        f"https://github.com/{repo_owner}/{repo_name}/archive/refs/heads/"
+        f"{quote(branch, safe='')}.zip"
     )
 
     print("→ Downloading latest version...")
@@ -5979,6 +6065,8 @@ def _update_via_zip(args):
                 if os.path.isdir(candidate) and d != "__MACOSX":
                     extracted = candidate
                     break
+
+        _stop_processes_that_may_lock_update_files()
 
         # Copy updated files over existing installation, preserving venv/node_modules/.git
         preserve = {"venv", "node_modules", ".git", ".env"}
