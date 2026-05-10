@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import type { StatusResponse } from "@/lib/api";
 import { useSidebarStatus } from "@/hooks/useSidebarStatus";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n";
@@ -17,8 +16,7 @@ export function SidebarStatusStrip() {
     );
   }
 
-  const gw = gatewayLine(status, t);
-  const { activeSessionsLabel, gatewayStatusLabel } = t.app;
+  const { activeSessionsLabel, webChatReady, webChatStatusLabel } = t.app;
 
   return (
     <Link
@@ -35,8 +33,8 @@ export function SidebarStatusStrip() {
     >
       <div className="flex flex-col gap-1 font-mondwest text-[0.55rem] leading-snug tracking-[0.12em]">
         <p className="break-words">
-          <span className="text-muted-foreground/50">{gatewayStatusLabel}</span>{" "}
-          <span className={cn("font-medium", gw.tone)}>{gw.label}</span>
+          <span className="text-muted-foreground/50">{webChatStatusLabel}</span>{" "}
+          <span className="font-medium text-success">{webChatReady}</span>
         </p>
 
         <p className="break-words">
@@ -48,23 +46,4 @@ export function SidebarStatusStrip() {
       </div>
     </Link>
   );
-}
-
-function gatewayLine(
-  status: StatusResponse,
-  t: ReturnType<typeof useI18n>["t"],
-): { label: string; tone: string } {
-  const g = t.app.gatewayStrip;
-  const byState: Record<string, { label: string; tone: string }> = {
-    running: { label: g.running, tone: "text-success" },
-    starting: { label: g.starting, tone: "text-warning" },
-    startup_failed: { label: g.failed, tone: "text-destructive" },
-    stopped: { label: g.stopped, tone: "text-muted-foreground" },
-  };
-  if (status.gateway_state && byState[status.gateway_state]) {
-    return byState[status.gateway_state];
-  }
-  return status.gateway_running
-    ? { label: g.running, tone: "text-success" }
-    : { label: g.off, tone: "text-muted-foreground" };
 }

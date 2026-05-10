@@ -66,6 +66,8 @@ export const en: Translations = {
       starting: "Starting",
       stopped: "Stopped",
     },
+    webChatReady: "Ready",
+    webChatStatusLabel: "Web Chat:",
     nav: {
       analytics: "Analytics",
       chat: "Chat",

@@ -65,6 +65,8 @@ export const zh: Translations = {
       starting: "启动中",
       stopped: "已停止",
     },
+    webChatReady: "可用",
+    webChatStatusLabel: "网页聊天：",
     nav: {
       analytics: "分析",
       chat: "对话",

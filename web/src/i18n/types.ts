@@ -66,6 +66,8 @@ export interface Translations {
       starting: string;
       stopped: string;
     };
+    webChatReady: string;
+    webChatStatusLabel: string;
     nav: {
       analytics: string;
       chat: string;
