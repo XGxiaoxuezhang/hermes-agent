@@ -666,12 +666,8 @@ _ACTION_LOG_FILES: Dict[str, str] = {
 _ACTION_PROCS: Dict[str, subprocess.Popen] = {}
 
 
-def _spawn_hermes_action(subcommand: List[str], name: str) -> subprocess.Popen:
-    """Spawn ``hermes <subcommand>`` detached and record the Popen handle.
-
-    Uses the running interpreter's ``hermes_cli.main`` module so the action
-    inherits the same venv/PYTHONPATH the web server is using.
-    """
+def _spawn_action_command(cmd: List[str], name: str) -> subprocess.Popen:
+    """Spawn a detached dashboard action and record the Popen handle."""
     log_file_name = _ACTION_LOG_FILES[name]
     _ACTION_LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_path = _ACTION_LOG_DIR / log_file_name
@@ -679,8 +675,6 @@ def _spawn_hermes_action(subcommand: List[str], name: str) -> subprocess.Popen:
     log_file.write(
         f"\n=== {name} started {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n".encode()
     )
-
-    cmd = [sys.executable, "-m", "hermes_cli.main", *subcommand]
 
     popen_kwargs: Dict[str, Any] = {
         "cwd": str(PROJECT_ROOT),
@@ -700,6 +694,65 @@ def _spawn_hermes_action(subcommand: List[str], name: str) -> subprocess.Popen:
     proc = subprocess.Popen(cmd, **popen_kwargs)
     _ACTION_PROCS[name] = proc
     return proc
+
+
+def _spawn_hermes_action(subcommand: List[str], name: str) -> subprocess.Popen:
+    """Spawn ``hermes <subcommand>`` detached and record the Popen handle.
+
+    Uses the running interpreter's ``hermes_cli.main`` module so the action
+    inherits the same venv/PYTHONPATH the web server is using.
+    """
+    return _spawn_action_command([sys.executable, "-m", "hermes_cli.main", *subcommand], name)
+
+
+def _git_value(args: List[str], fallback: str = "") -> str:
+    try:
+        return subprocess.check_output(
+            ["git", *args],
+            cwd=str(PROJECT_ROOT),
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        ).strip()
+    except Exception:
+        return fallback
+
+
+def _spawn_windows_installer_update(port: int, name: str) -> subprocess.Popen:
+    """Use the Windows fork installer for dashboard-triggered updates.
+
+    This matches the one-line install command users run on fresh machines, so
+    update and install share the same recovery behavior for dirty checkouts,
+    locked files, and stale dashboard processes.
+    """
+    script = PROJECT_ROOT / "scripts" / "windows" / "install-from-github.ps1"
+    if not script.exists():
+        raise FileNotFoundError(f"Missing Windows installer: {script}")
+
+    branch = _git_value(["branch", "--show-current"], "windows-dashboard-i18n")
+    repo_url = _git_value(
+        ["config", "--get", "remote.origin.url"],
+        "https://github.com/XGxiaoxuezhang/hermes-agent.git",
+    )
+    cmd = [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-RepoUrl",
+        repo_url,
+        "-Branch",
+        branch or "windows-dashboard-i18n",
+        "-InstallDir",
+        str(PROJECT_ROOT),
+        "-Port",
+        str(port),
+        "-NoOpen",
+    ]
+    return _spawn_action_command(cmd, name)
 
 
 def _tail_lines(path: Path, n: int) -> List[str]:
@@ -732,10 +785,14 @@ async def restart_gateway():
 
 
 @app.post("/api/hermes/update")
-async def update_hermes():
-    """Kick off ``hermes update`` in the background."""
+async def update_hermes(request: Request):
+    """Kick off a Hermes update in the background."""
     try:
-        proc = _spawn_hermes_action(["update"], "hermes-update")
+        if sys.platform == "win32":
+            port = request.url.port or 9119
+            proc = _spawn_windows_installer_update(port, "hermes-update")
+        else:
+            proc = _spawn_hermes_action(["update"], "hermes-update")
     except Exception as exc:
         _log.exception("Failed to spawn hermes update")
         raise HTTPException(status_code=500, detail=f"Failed to start update: {exc}")
