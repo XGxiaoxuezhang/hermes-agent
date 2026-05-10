@@ -357,8 +357,8 @@ function SessionRow({
           </Badge>
           {resumeInChatEnabled && (
             <Button
-              ghost
-              size="icon"
+              outlined
+              size="sm"
               className="text-muted-foreground hover:text-success"
               aria-label={t.sessions.resumeInChat}
               title={t.sessions.resumeInChat}
@@ -367,7 +367,8 @@ function SessionRow({
                 navigate(`/chat?resume=${encodeURIComponent(session.id)}`);
               }}
             >
-              <Play />
+              <Play className="h-3 w-3" />
+              <span className="ml-1">{t.sessions.resumeInChat}</span>
             </Button>
           )}
           <Button
@@ -427,6 +428,7 @@ export default function SessionsPage() {
   const [overviewSessions, setOverviewSessions] = useState<SessionInfo[]>([]);
   const { toast, showToast } = useToast();
   const { t } = useI18n();
+  const navigate = useNavigate();
   const { setAfterTitle, setEnd } = usePageHeader();
   const { activeAction, actionStatus, dismissLog } = useSystemActions();
   const resumeInChatEnabled = isDashboardEmbeddedChatEnabled();
@@ -746,7 +748,16 @@ export default function SessionsPage() {
             {recentSessions.map((s) => (
               <div
                 key={s.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-border p-3 w-full"
+                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-border p-3 w-full ${
+                  resumeInChatEnabled
+                    ? "cursor-pointer hover:bg-secondary/30 transition-colors"
+                    : ""
+                }`}
+                onClick={() => {
+                  if (resumeInChatEnabled) {
+                    navigate(`/chat?resume=${encodeURIComponent(s.id)}`);
+                  }
+                }}
               >
                 <div className="flex flex-col gap-1 min-w-0 w-full">
                   <span className="font-medium text-sm truncate">
@@ -768,13 +779,25 @@ export default function SessionsPage() {
                   )}
                 </div>
 
-                <Badge
-                  tone="outline"
-                  className="text-[10px] shrink-0 self-start sm:self-center"
-                >
-                  <Database className="mr-1 h-3 w-3" />
-                  {s.source ?? "local"}
-                </Badge>
+                <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                  <Badge tone="outline" className="text-[10px]">
+                    <Database className="mr-1 h-3 w-3" />
+                    {s.source ?? "local"}
+                  </Badge>
+                  {resumeInChatEnabled && (
+                    <Button
+                      outlined
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/chat?resume=${encodeURIComponent(s.id)}`);
+                      }}
+                    >
+                      <Play className="h-3 w-3" />
+                      <span className="ml-1">{t.sessions.resumeInChat}</span>
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </CardContent>

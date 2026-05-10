@@ -5868,6 +5868,8 @@ def _kill_stale_dashboard_processes(
                     ["taskkill", "/PID", str(pid), "/F"],
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=10,
                 )
                 if result.returncode == 0:
@@ -5983,6 +5985,8 @@ def _stop_processes_that_may_lock_update_files() -> None:
                     ["taskkill", "/PID", str(pid), "/F"],
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=10,
                 )
                 if result.returncode == 0:
