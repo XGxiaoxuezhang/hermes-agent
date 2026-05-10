@@ -6680,6 +6680,49 @@ def _run_install_with_heartbeat(
         t.join(timeout=0.2)
 
 
+def _python_package_mirror_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """Return env with a PyPI mirror fallback for restricted networks.
+
+    Dashboard updates on Windows often run on machines where direct
+    ``https://pypi.org`` TLS connections are interrupted by local networks or
+    transparent proxies.  Respect explicit user settings, but provide a stable
+    mirror when no index is configured so build dependencies such as
+    ``setuptools`` can still be resolved.
+    """
+    merged = dict(env or os.environ)
+    mirror = "https://pypi.tuna.tsinghua.edu.cn/simple"
+    merged.setdefault("PIP_INDEX_URL", mirror)
+    # uv versions differ in which compatibility variable they honor. Set both
+    # only when the user has not chosen their own uv index.
+    merged.setdefault("UV_DEFAULT_INDEX", mirror)
+    merged.setdefault("UV_INDEX_URL", mirror)
+    return merged
+
+
+def _run_python_install_with_mirror_fallback(
+    cmd: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> None:
+    """Run a pip/uv install and retry once with a PyPI mirror if needed."""
+    try:
+        _run_install_with_heartbeat(cmd, env=env)
+        return
+    except subprocess.CalledProcessError:
+        explicit_index = bool(
+            (env or os.environ).get("PIP_INDEX_URL")
+            or (env or os.environ).get("UV_DEFAULT_INDEX")
+            or (env or os.environ).get("UV_INDEX_URL")
+        )
+        if explicit_index:
+            raise
+        print("  ⚠ Python package install failed; retrying with PyPI mirror...")
+        _run_install_with_heartbeat(
+            cmd,
+            env=_python_package_mirror_env(env),
+        )
+
+
 def _install_python_dependencies_with_optional_fallback(
     install_cmd_prefix: list[str],
     *,
@@ -6692,7 +6735,7 @@ def _install_python_dependencies_with_optional_fallback(
     ``group='termux-all'`` to use the curated Android-compatible profile.
     """
     try:
-        _run_install_with_heartbeat(
+        _run_python_install_with_mirror_fallback(
             install_cmd_prefix + ["install", "-e", f".[{group}]"],
             env=env,
         )
@@ -6702,7 +6745,7 @@ def _install_python_dependencies_with_optional_fallback(
             "  ⚠ Optional extras failed, reinstalling base dependencies and retrying extras individually..."
         )
 
-    _run_install_with_heartbeat(
+    _run_python_install_with_mirror_fallback(
         install_cmd_prefix + ["install", "-e", "."],
         env=env,
     )
@@ -6711,7 +6754,7 @@ def _install_python_dependencies_with_optional_fallback(
     installed_extras: list[str] = []
     for extra in _load_installable_optional_extras(group=group):
         try:
-            _run_install_with_heartbeat(
+            _run_python_install_with_mirror_fallback(
                 install_cmd_prefix + ["install", "-e", f".[{extra}]"],
                 env=env,
             )
