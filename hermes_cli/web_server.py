@@ -666,29 +666,44 @@ _ACTION_LOG_FILES: Dict[str, str] = {
 _ACTION_PROCS: Dict[str, subprocess.Popen] = {}
 
 
-def _spawn_action_command(cmd: List[str], name: str) -> subprocess.Popen:
+def _spawn_action_command(
+    cmd: List[str],
+    name: str,
+    *,
+    visible_console: bool = False,
+) -> subprocess.Popen:
     """Spawn a detached dashboard action and record the Popen handle."""
     log_file_name = _ACTION_LOG_FILES[name]
     _ACTION_LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_path = _ACTION_LOG_DIR / log_file_name
-    log_file = open(log_path, "ab", buffering=0)
-    log_file.write(
-        f"\n=== {name} started {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n".encode()
-    )
+    with open(log_path, "ab", buffering=0) as log_file:
+        log_file.write(
+            f"\n=== {name} started {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n".encode()
+        )
 
     popen_kwargs: Dict[str, Any] = {
         "cwd": str(PROJECT_ROOT),
-        "stdin": subprocess.DEVNULL,
-        "stdout": log_file,
-        "stderr": subprocess.STDOUT,
         "env": {**os.environ, "HERMES_NONINTERACTIVE": "1"},
     }
+    if not visible_console:
+        log_file = open(log_path, "ab", buffering=0)
+        popen_kwargs.update({
+            "stdin": subprocess.DEVNULL,
+            "stdout": log_file,
+            "stderr": subprocess.STDOUT,
+        })
     if sys.platform == "win32":
-        popen_kwargs["creationflags"] = (
-            subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
-            | getattr(subprocess, "DETACHED_PROCESS", 0)
-            | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
-        )
+        if visible_console:
+            popen_kwargs["creationflags"] = (
+                subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+                | getattr(subprocess, "CREATE_NEW_CONSOLE", 0x00000010)
+            )
+        else:
+            popen_kwargs["creationflags"] = (
+                subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+                | getattr(subprocess, "DETACHED_PROCESS", 0)
+                | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+            )
     else:
         popen_kwargs["start_new_session"] = True
 
@@ -728,9 +743,9 @@ def _spawn_windows_installer_update(port: int, name: str) -> subprocess.Popen:
     update and install share the same recovery behavior for dirty checkouts,
     locked files, and stale dashboard processes.
     """
-    script = PROJECT_ROOT / "scripts" / "windows" / "install-from-github.ps1"
+    script = PROJECT_ROOT / "scripts" / "windows" / "update-dashboard-visible.ps1"
     if not script.exists():
-        raise FileNotFoundError(f"Missing Windows installer: {script}")
+        raise FileNotFoundError(f"Missing Windows update wrapper: {script}")
 
     branch = _git_value(["branch", "--show-current"], "windows-dashboard-i18n")
     repo_url = _git_value(
@@ -753,10 +768,10 @@ def _spawn_windows_installer_update(port: int, name: str) -> subprocess.Popen:
         str(PROJECT_ROOT),
         "-Port",
         str(port),
-        "-NoOpen",
-        "-Background",
+        "-LogFile",
+        str(_ACTION_LOG_DIR / _ACTION_LOG_FILES[name]),
     ]
-    return _spawn_action_command(cmd, name)
+    return _spawn_action_command(cmd, name, visible_console=True)
 
 
 def _tail_lines(path: Path, n: int) -> List[str]:
