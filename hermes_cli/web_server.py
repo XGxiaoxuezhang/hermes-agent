@@ -466,7 +466,7 @@ class CustomOpenAIProviderUpdate(BaseModel):
     name: str = "New API"
     base_url: str
     api_key: str
-    model: str
+    model: str = ""
 
 
 _GATEWAY_HEALTH_URL = os.getenv("GATEWAY_HEALTH_URL")
@@ -1167,11 +1167,12 @@ async def set_model_assignment(body: ModelAssignment):
 
 @app.post("/api/model/custom-openai-provider")
 async def save_custom_openai_provider(body: CustomOpenAIProviderUpdate):
-    """Save an OpenAI-compatible provider and make it the main model.
+    """Save an OpenAI-compatible provider for later model selection.
 
     New API, One API, LocalAI, LM Studio and similar gateways expose the same
     basic ``/v1/chat/completions`` shape.  Store the secret in ``.env`` and the
-    endpoint/model metadata in ``config.yaml`` so it appears in the model picker.
+    endpoint metadata in ``config.yaml`` so the Models page can discover
+    available models from ``/v1/models`` and let the user pick one.
     """
     import re
 
@@ -1189,8 +1190,6 @@ async def save_custom_openai_provider(body: CustomOpenAIProviderUpdate):
         raise HTTPException(status_code=400, detail="Base URL must start with http:// or https://")
     if not api_key:
         raise HTTPException(status_code=400, detail="API key is required")
-    if not model:
-        raise HTTPException(status_code=400, detail="Model is required")
 
     try:
         env_key = f"{slug.upper().replace('-', '_')}_API_KEY"
@@ -1208,20 +1207,25 @@ async def save_custom_openai_provider(body: CustomOpenAIProviderUpdate):
             "name": name,
             "base_url": base_url,
             "key_env": env_key,
-            "model": model,
-            "models": {model: {}},
         })
+        if model:
+            provider_cfg["model"] = model
+            provider_cfg["models"] = {model: {}}
+        else:
+            provider_cfg.pop("model", None)
+            provider_cfg.pop("models", None)
         providers[slug] = provider_cfg
         cfg["providers"] = providers
 
-        model_cfg = cfg.get("model")
-        if not isinstance(model_cfg, dict):
-            model_cfg = {}
-        model_cfg["provider"] = slug
-        model_cfg["default"] = model
-        model_cfg.pop("base_url", None)
-        model_cfg.pop("context_length", None)
-        cfg["model"] = model_cfg
+        if model:
+            model_cfg = cfg.get("model")
+            if not isinstance(model_cfg, dict):
+                model_cfg = {}
+            model_cfg["provider"] = slug
+            model_cfg["default"] = model
+            model_cfg.pop("base_url", None)
+            model_cfg.pop("context_length", None)
+            cfg["model"] = model_cfg
 
         save_config(cfg)
         return {

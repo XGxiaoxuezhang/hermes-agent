@@ -45,24 +45,25 @@ import { PluginSlot } from "@/plugins";
 const PROVIDER_GROUPS: { prefix: string; name: string; priority: number }[] = [
   // Nous Portal first
   { prefix: "NOUS_", name: "Nous Portal", priority: 0 },
+  { prefix: "NEW_API_", name: "New API", priority: 1 },
   // Then alphabetical by display name
-  { prefix: "ANTHROPIC_", name: "Anthropic", priority: 1 },
-  { prefix: "DASHSCOPE_", name: "DashScope (Qwen)", priority: 2 },
-  { prefix: "HERMES_QWEN_", name: "DashScope (Qwen)", priority: 2 },
-  { prefix: "DEEPSEEK_", name: "DeepSeek", priority: 3 },
-  { prefix: "GOOGLE_", name: "Gemini", priority: 4 },
-  { prefix: "GEMINI_", name: "Gemini", priority: 4 },
-  { prefix: "GLM_", name: "GLM / Z.AI", priority: 5 },
-  { prefix: "ZAI_", name: "GLM / Z.AI", priority: 5 },
-  { prefix: "Z_AI_", name: "GLM / Z.AI", priority: 5 },
-  { prefix: "HF_", name: "Hugging Face", priority: 6 },
-  { prefix: "KIMI_", name: "Kimi / Moonshot", priority: 7 },
-  { prefix: "MINIMAX_CN_", name: "MiniMax (China)", priority: 9 },
-  { prefix: "MINIMAX_", name: "MiniMax", priority: 8 },
-  { prefix: "OPENCODE_GO_", name: "OpenCode Go", priority: 10 },
-  { prefix: "OPENCODE_ZEN_", name: "OpenCode Zen", priority: 11 },
-  { prefix: "OPENROUTER_", name: "OpenRouter", priority: 12 },
-  { prefix: "XIAOMI_", name: "Xiaomi MiMo", priority: 13 },
+  { prefix: "ANTHROPIC_", name: "Anthropic", priority: 2 },
+  { prefix: "DASHSCOPE_", name: "DashScope (Qwen)", priority: 3 },
+  { prefix: "HERMES_QWEN_", name: "DashScope (Qwen)", priority: 3 },
+  { prefix: "DEEPSEEK_", name: "DeepSeek", priority: 4 },
+  { prefix: "GOOGLE_", name: "Gemini", priority: 5 },
+  { prefix: "GEMINI_", name: "Gemini", priority: 5 },
+  { prefix: "GLM_", name: "GLM / Z.AI", priority: 6 },
+  { prefix: "ZAI_", name: "GLM / Z.AI", priority: 6 },
+  { prefix: "Z_AI_", name: "GLM / Z.AI", priority: 6 },
+  { prefix: "HF_", name: "Hugging Face", priority: 7 },
+  { prefix: "KIMI_", name: "Kimi / Moonshot", priority: 8 },
+  { prefix: "MINIMAX_CN_", name: "MiniMax (China)", priority: 10 },
+  { prefix: "MINIMAX_", name: "MiniMax", priority: 9 },
+  { prefix: "OPENCODE_GO_", name: "OpenCode Go", priority: 11 },
+  { prefix: "OPENCODE_ZEN_", name: "OpenCode Zen", priority: 12 },
+  { prefix: "OPENROUTER_", name: "OpenRouter", priority: 13 },
+  { prefix: "XIAOMI_", name: "Xiaomi MiMo", priority: 14 },
 ];
 
 function getProviderGroup(key: string): string {
@@ -481,6 +482,84 @@ function ProviderGroupCard({
   );
 }
 
+function NewApiCredentialsCard({
+  onSaved,
+  showToast,
+}: {
+  onSaved(): void;
+  showToast(message: string, type: "success" | "error"): void;
+}) {
+  const [baseUrl, setBaseUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const canSave = baseUrl.trim() && apiKey.trim() && !saving;
+
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      await api.saveCustomOpenAIProvider({
+        slug: "new-api",
+        name: "New API",
+        base_url: baseUrl.trim(),
+        api_key: apiKey.trim(),
+      });
+      setApiKey("");
+      showToast("New API 凭据已保存，模型页会自动读取模型列表", "success");
+      onSaved();
+    } catch (e) {
+      showToast(`保存 New API 凭据失败：${e}`, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="border-b border-border bg-card">
+        <div className="flex items-center gap-2">
+          <Zap className="h-5 w-5 text-muted-foreground" />
+          <CardTitle className="text-base">New API / OpenAI 兼容接口</CardTitle>
+        </div>
+        <CardDescription>
+          保存 New API 的 Base URL 和令牌；模型列表会在模型页通过 /v1/models 自动拉取。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 py-4 md:grid-cols-[1.35fr_1fr_auto] md:items-end">
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Base URL</span>
+          <Input
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="https://你的-new-api域名/v1"
+          />
+        </label>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">API Key</span>
+          <Input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-..."
+          />
+        </label>
+        <Button
+          type="button"
+          onClick={save}
+          disabled={!canSave}
+          prefix={saving ? <Spinner /> : <Save />}
+        >
+          保存凭据
+        </Button>
+        <p className="text-xs text-muted-foreground md:col-span-3">
+          保存后进入“模型”页，点主模型的“更改”，选择 New API 下自动发现的模型。
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
@@ -495,6 +574,13 @@ export default function EnvPage() {
   const { t } = useI18n();
 
   useEffect(() => {
+    api
+      .getEnvVars()
+      .then(setVars)
+      .catch(() => {});
+  }, []);
+
+  const reloadVars = useCallback(() => {
     api
       .getEnvVars()
       .then(setVars)
@@ -705,6 +791,8 @@ export default function EnvPage() {
         onError={(msg) => showToast(msg, "error")}
         onSuccess={(msg) => showToast(msg, "success")}
       />
+
+      <NewApiCredentialsCard onSaved={reloadVars} showToast={showToast} />
 
       <Card>
         <CardHeader className="border-b border-border bg-card">

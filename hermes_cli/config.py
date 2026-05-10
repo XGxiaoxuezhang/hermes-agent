@@ -1455,6 +1455,14 @@ OPTIONAL_ENV_VARS = {
         "category": "provider",
         "advanced": True,
     },
+    "NEW_API_API_KEY": {
+        "description": "New API / OpenAI-compatible gateway API key",
+        "prompt": "New API key",
+        "url": None,
+        "password": True,
+        "category": "provider",
+        "advanced": False,
+    },
     "OPENROUTER_API_KEY": {
         "description": "OpenRouter API key (for vision, web scraping helpers, and MoA)",
         "prompt": "OpenRouter API key",
