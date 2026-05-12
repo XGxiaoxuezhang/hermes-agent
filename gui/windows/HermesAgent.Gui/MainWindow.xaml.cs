@@ -1,4 +1,6 @@
+using System.IO;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace HermesAgent.Gui;
@@ -16,10 +18,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         RepoRootBox.Text = _client.RepoRoot;
 
-        _timer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(4)
-        };
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
         _timer.Tick += async (_, _) => await RefreshAllAsync();
         Loaded += async (_, _) =>
         {
@@ -34,6 +33,7 @@ public partial class MainWindow : Window
         {
             return;
         }
+
         _refreshing = true;
         try
         {
@@ -41,10 +41,12 @@ public partial class MainWindow : Window
             _lastStatus = await _client.GetStatusAsync(cts.Token);
             RenderStatus(_lastStatus);
             await RefreshLogAsync();
+            LastRefreshText.Text = $"已刷新 {DateTime.Now:HH:mm:ss}";
         }
         catch (Exception ex)
         {
             DetailText.Text = ex.Message;
+            HintText.Text = "刷新失败。";
         }
         finally
         {
@@ -54,49 +56,55 @@ public partial class MainWindow : Window
 
     private void RenderStatus(HermesStatus status)
     {
-        DashboardStatusText.Text = status.DashboardOnline
-            ? $"Dashboard: online at {_client.BaseUrl}"
-            : "Dashboard: offline";
-        GatewayStatusText.Text = status.GatewayRunning
-            ? $"Gateway: running PID {status.GatewayPid?.ToString() ?? "unknown"}"
-            : "Gateway: stopped";
-        VersionText.Text = $"Version: {status.Version}";
-        SessionsText.Text = $"Active sessions: {status.ActiveSessions}";
+        PortText.Text = $"端口 {_client.Port}";
+        VersionText.Text = status.Version;
+        SessionsText.Text = status.ActiveSessions.ToString();
+
+        DashboardBadgeText.Text = status.DashboardOnline ? "在线" : "离线";
+        DashboardBadgeText.Foreground = Brush(status.DashboardOnline ? "#047857" : "#B42318");
+        DashboardSubText.Text = status.DashboardOnline ? _client.BaseUrl : "本地后端未响应";
+
+        GatewayBadgeText.Text = status.GatewayRunning ? "运行中" : "未运行";
+        GatewayBadgeText.Foreground = Brush(status.GatewayRunning ? "#047857" : "#B42318");
+        GatewaySubText.Text = status.GatewayRunning
+            ? $"PID {status.GatewayPid?.ToString() ?? "未知"}"
+            : "未检测到进程";
+
+        StartButton.IsEnabled = !status.DashboardOnline;
+        StopButton.IsEnabled = status.DashboardOnline;
+        RestartButton.IsEnabled = status.DashboardOnline;
 
         if (!status.DashboardOnline)
         {
-            DetailText.Text = $"Dashboard is not reachable. {status.Error}";
+            DetailText.Text =
+                "控制台后端不可达。可以点击左侧“启动控制台后端”。\n" +
+                $"最近错误：{status.Error ?? "无详细信息"}";
+            FooterText.Text = "离线状态下仍可查看本地日志、启动后端或打开更新终端。";
             return;
         }
 
+        var gatewayState = string.IsNullOrWhiteSpace(status.GatewayState) ? "未知" : status.GatewayState;
         DetailText.Text =
-            $"Hermes home: {status.HermesHome}\n" +
-            $"Config: {status.ConfigPath}\n" +
-            $"Env: {status.EnvPath}\n" +
-            $"Gateway state: {status.GatewayState ?? "unknown"}" +
-            (string.IsNullOrWhiteSpace(status.GatewayExitReason) ? "" : $"\nLast exit: {status.GatewayExitReason}");
+            $"Hermes Home：{status.HermesHome}\n" +
+            $"配置文件：{status.ConfigPath}\n" +
+            $"密钥文件：{status.EnvPath}\n" +
+            $"网关状态：{gatewayState}" +
+            (string.IsNullOrWhiteSpace(status.GatewayExitReason) ? "" : $"\n上次退出：{status.GatewayExitReason}");
+        FooterText.Text = "本机模式：界面只显示密钥文件路径，不读取或展示密钥值。";
     }
 
     private async Task RefreshLogAsync()
     {
         try
         {
-            if (_selectedLog == "gateway")
+            LogTitleText.Text = LogTitle(_selectedLog);
+            LogTextBox.Text = _selectedLog switch
             {
-                LogTextBox.Text = _client.ReadGatewayLog(_lastStatus?.HermesHome ?? "");
-            }
-            else if (_selectedLog == "update")
-            {
-                LogTextBox.Text = await ReadActionOrLocalLogAsync("hermes-update", "update");
-            }
-            else if (_selectedLog == "restart")
-            {
-                LogTextBox.Text = await ReadActionOrLocalLogAsync("gateway-restart", "dashboard");
-            }
-            else
-            {
-                LogTextBox.Text = _client.ReadLocalLog("dashboard");
-            }
+                "gateway" => _client.ReadGatewayLog(_lastStatus?.HermesHome ?? ""),
+                "update" => await ReadActionOrLocalLogAsync("hermes-update", "update"),
+                "restart" => await ReadActionOrLocalLogAsync("gateway-restart", "dashboard"),
+                _ => _client.ReadLocalLog("dashboard")
+            };
             LogTextBox.ScrollToEnd();
         }
         catch (Exception ex)
@@ -114,8 +122,38 @@ public partial class MainWindow : Window
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var status = await _client.GetActionStatusAsync(actionName, cts.Token);
-        var header = $"{status.Name} running={status.Running} pid={status.Pid?.ToString() ?? "-"} exit={status.ExitCode?.ToString() ?? "-"}";
+        var running = status.Running ? "运行中" : "已结束";
+        var exit = status.ExitCode?.ToString() ?? "未知";
+        var header = $"{status.Name}：{running}  PID={status.Pid?.ToString() ?? "-"}  退出码={exit}";
         return header + Environment.NewLine + string.Join(Environment.NewLine, status.Lines);
+    }
+
+    private async Task RunUiActionAsync(string message, Func<Task> action)
+    {
+        HintText.Text = message;
+        SetBusy(true);
+        try
+        {
+            await action();
+            await RefreshAllAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Hermes Agent 控制台", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+            HintText.Text = "就绪";
+        }
+    }
+
+    private void SetBusy(bool busy)
+    {
+        StartButton.IsEnabled = !busy && (_lastStatus?.DashboardOnline != true);
+        StopButton.IsEnabled = !busy && (_lastStatus?.DashboardOnline == true);
+        RestartButton.IsEnabled = !busy && (_lastStatus?.DashboardOnline == true);
+        UpdateButton.IsEnabled = !busy;
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
@@ -125,7 +163,7 @@ public partial class MainWindow : Window
 
     private async void StartDashboard_Click(object sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync("Starting dashboard...", async () =>
+        await RunUiActionAsync("正在启动控制台后端...", async () =>
         {
             await _client.StartDashboardAsync();
             await Task.Delay(1800);
@@ -134,7 +172,7 @@ public partial class MainWindow : Window
 
     private async void StopDashboard_Click(object sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync("Stopping dashboard...", async () =>
+        await RunUiActionAsync("正在停止控制台后端...", async () =>
         {
             await _client.StopDashboardAsync();
             await Task.Delay(1000);
@@ -143,7 +181,7 @@ public partial class MainWindow : Window
 
     private async void RestartGateway_Click(object sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync("Restarting gateway...", async () =>
+        await RunUiActionAsync("正在重启消息网关...", async () =>
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             await _client.RestartGatewayAsync(cts.Token);
@@ -153,29 +191,11 @@ public partial class MainWindow : Window
 
     private async void UpdateHermes_Click(object sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync("Opening update terminal...", async () =>
+        await RunUiActionAsync("已打开更新终端，请在终端中查看进度。", async () =>
         {
             await _client.UpdateVisibleAsync();
             _selectedLog = "update";
         });
-    }
-
-    private async Task RunUiActionAsync(string message, Func<Task> action)
-    {
-        HintText.Text = message;
-        try
-        {
-            await action();
-            await RefreshAllAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, ex.Message, "Hermes Agent", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-        finally
-        {
-            HintText.Text = "Ready.";
-        }
     }
 
     private async void DashboardLog_Click(object sender, RoutedEventArgs e)
@@ -206,22 +226,133 @@ public partial class MainWindow : Window
     {
         if (!int.TryParse(PortBox.Text.Trim(), out var port) || port < 1 || port > 65535)
         {
-            MessageBox.Show(this, "Port must be between 1 and 65535.", "Hermes Agent", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "端口必须在 1 到 65535 之间。", "Hermes Agent 控制台", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         _client.Port = port;
+        HintText.Text = $"已切换到端口 {port}";
         await RefreshAllAsync();
     }
 
     private async void ApplyRepo_Click(object sender, RoutedEventArgs e)
     {
         var path = RepoRootBox.Text.Trim().Trim('"');
-        if (!System.IO.Directory.Exists(path))
+        if (!Directory.Exists(path))
         {
-            MessageBox.Show(this, "Repository path does not exist.", "Hermes Agent", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "仓库目录不存在。", "Hermes Agent 控制台", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         _client.RepoRoot = path;
+        HintText.Text = "仓库目录已更新。";
         await RefreshAllAsync();
+    }
+
+    private void OpenRepo_Click(object sender, RoutedEventArgs e)
+    {
+        SafeOpen(_client.RepoRoot);
+    }
+
+    private void OpenConfig_Click(object sender, RoutedEventArgs e)
+    {
+        SafeOpen(_lastStatus?.ConfigPath);
+    }
+
+    private void OpenEnv_Click(object sender, RoutedEventArgs e)
+    {
+        SafeOpen(_lastStatus?.EnvPath);
+    }
+
+    private void OpenLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(_lastStatus?.HermesHome))
+            {
+                _client.OpenHermesLogs(_lastStatus.HermesHome);
+            }
+            else
+            {
+                _client.OpenLocalLogs();
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowOpenError(ex);
+        }
+    }
+
+    private void CopyUrl_Click(object sender, RoutedEventArgs e)
+    {
+        Clipboard.SetText(_client.BaseUrl);
+        HintText.Text = $"已复制：{_client.BaseUrl}";
+    }
+
+    private void OpenDashboard_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _client.OpenUrl();
+        }
+        catch (Exception ex)
+        {
+            ShowOpenError(ex);
+        }
+    }
+
+    private void ClearLog_Click(object sender, RoutedEventArgs e)
+    {
+        LogTextBox.Clear();
+    }
+
+    private void AutoRefresh_Changed(object sender, RoutedEventArgs e)
+    {
+        if (AutoRefreshBox.IsChecked == true)
+        {
+            _timer.Start();
+            HintText.Text = "自动刷新已开启。";
+        }
+        else
+        {
+            _timer.Stop();
+            HintText.Text = "自动刷新已暂停。";
+        }
+    }
+
+    private static string LogTitle(string key)
+    {
+        return key switch
+        {
+            "gateway" => "网关日志",
+            "update" => "更新日志",
+            "restart" => "重启日志",
+            _ => "控制台日志"
+        };
+    }
+
+    private void SafeOpen(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            MessageBox.Show(this, "当前状态里没有可打开的路径。", "Hermes Agent 控制台", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        try
+        {
+            HermesClient.OpenPath(path);
+        }
+        catch (Exception ex)
+        {
+            ShowOpenError(ex);
+        }
+    }
+
+    private void ShowOpenError(Exception ex)
+    {
+        MessageBox.Show(this, ex.Message, "无法打开", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private static SolidColorBrush Brush(string hex)
+    {
+        return (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;
     }
 }

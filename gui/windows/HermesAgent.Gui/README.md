@@ -1,32 +1,39 @@
-# Hermes Agent Windows GUI
+# Hermes Agent Windows 原生控制台
 
-Native WPF control panel for the local Hermes Agent install. It is intentionally
-not a WebView: the GUI controls the existing Hermes Python backend through local
-HTTP endpoints and the existing Windows scripts.
+这是 Hermes Agent 的 Windows WPF 桌面控制台，不是 WebView。它复用现有
+Hermes Python 后端和 Windows 脚本，用来处理本机安装、更新、网关和日志。
 
-## First version
+## 当前功能
 
-- Polls `http://127.0.0.1:9119/api/status`
-- Starts and stops the local dashboard backend
-- Restarts the gateway through `/api/gateway/restart`
-- Opens the visible Windows update terminal through `update-dashboard-visible.ps1`
-- Tails dashboard, gateway, update, and restart logs
+- 中文原生界面
+- 控制台后端状态轮询
+- 消息网关运行状态、PID、活跃会话数
+- 启动 / 停止控制台后端
+- 重启消息网关
+- 打开可见终端执行更新，方便观察更新日志
+- 查看控制台日志、网关日志、更新日志、重启日志
+- 打开仓库目录、配置文件、密钥文件和日志目录
+- 复制本地控制台地址
+- 自动刷新开关
 
-## Build
+## 构建
 
-Install the .NET 6 SDK or newer Windows Desktop SDK, then run:
+需要 .NET 6 SDK 或更新的 Windows Desktop SDK：
 
 ```powershell
+cd gui\windows\HermesAgent.Gui
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-The current runtime-only Windows install can run a published app, but it cannot
-compile this project without the SDK.
+输出文件：
 
-## Runtime assumptions
+```text
+bin\Release\net6.0-windows\HermesAgent.Gui.exe
+```
 
-- Default repository path is discovered by walking upward from the executable.
-- Set `HERMES_REPO_DIR` to force a specific repo checkout.
-- Default dashboard port is `9119`; it can be changed in the UI.
-- Local secrets remain in Hermes' normal config/env files. The GUI reads paths
-  and status only; it does not print secret values.
+## 运行说明
+
+- 默认端口：`9119`
+- 默认仓库目录会自动从程序所在位置向上查找
+- 可用环境变量 `HERMES_REPO_DIR` 指定仓库目录
+- 密钥仍由 Hermes 写入原有 env 文件；控制台只显示路径，不展示密钥值

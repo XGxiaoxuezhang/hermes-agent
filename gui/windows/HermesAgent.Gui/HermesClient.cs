@@ -39,6 +39,11 @@ public sealed class HermesClient
 
     public string BaseUrl => $"http://127.0.0.1:{Port}";
 
+    public string LocalStateDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "HermesAgent"
+    );
+
     public async Task<HermesStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
         try
@@ -109,11 +114,7 @@ public sealed class HermesClient
     public Task UpdateVisibleAsync()
     {
         var script = ScriptPath("update-dashboard-visible.ps1");
-        var logFile = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "HermesAgent",
-            "hermes-update.log"
-        );
+        var logFile = Path.Combine(LocalStateDir, "hermes-update.log");
         var args =
             $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\" -InstallDir \"{RepoRoot}\" -Port {Port} -LogFile \"{logFile}\"";
         StartPowerShell(args, hidden: false);
@@ -147,14 +148,50 @@ public sealed class HermesClient
 
     public string ReadLocalLog(string name, int maxChars = 24000)
     {
-        var stateDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HermesAgent");
         var candidates = name switch
         {
-            "dashboard" => new[] { Path.Combine(stateDir, "dashboard.log"), Path.Combine(stateDir, "dashboard-error.log") },
-            "update" => new[] { Path.Combine(stateDir, "hermes-update.log") },
+            "dashboard" => new[] { Path.Combine(LocalStateDir, "dashboard.log"), Path.Combine(LocalStateDir, "dashboard-error.log") },
+            "update" => new[] { Path.Combine(LocalStateDir, "hermes-update.log") },
             _ => Array.Empty<string>()
         };
         return ReadTail(candidates, maxChars);
+    }
+
+    public void OpenUrl()
+    {
+        OpenPath(BaseUrl);
+    }
+
+    public void OpenRepo()
+    {
+        OpenPath(RepoRoot);
+    }
+
+    public void OpenLocalLogs()
+    {
+        Directory.CreateDirectory(LocalStateDir);
+        OpenPath(LocalStateDir);
+    }
+
+    public void OpenHermesLogs(string hermesHome)
+    {
+        if (string.IsNullOrWhiteSpace(hermesHome))
+        {
+            hermesHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hermes");
+        }
+        var path = Path.Combine(hermesHome, "logs");
+        Directory.CreateDirectory(path);
+        OpenPath(path);
+    }
+
+    public static void OpenPath(string path)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = path,
+            UseShellExecute = true
+        };
+        Process.Start(startInfo);
     }
 
     public string ReadGatewayLog(string hermesHome, int maxChars = 24000)
@@ -202,7 +239,7 @@ public sealed class HermesClient
         {
             if (!File.Exists(path))
             {
-                parts.Add($"[{path}] not found");
+                parts.Add($"[{path}] 文件不存在");
                 continue;
             }
             try
