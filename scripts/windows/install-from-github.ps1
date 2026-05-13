@@ -157,7 +157,6 @@ function Test-CommandExitZero {
 
 function Test-CompatiblePython {
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        if (Test-CommandExitZero "py" @("-3.14", "-c", "import sys")) { return $true }
         if (Test-CommandExitZero "py" @("-3.13", "-c", "import sys")) { return $true }
         if (Test-CommandExitZero "py" @("-3.11", "-c", "import sys")) { return $true }
     }
@@ -168,7 +167,7 @@ function Test-CompatiblePython {
         } catch {
             $version = ""
         }
-        if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.14") {
+        if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.13") {
             return $true
         }
     }
@@ -186,7 +185,7 @@ Ensure-Command "git" "Git.Git" "https://git-scm.com/download/win"
 Ensure-Command "node" "OpenJS.NodeJS.LTS" "https://nodejs.org/"
 
 if (-not (Test-CompatiblePython)) {
-    Install-WithWinget "Python 3.14" "Python.Python.3.14" "https://www.python.org/downloads/"
+    Install-WithWinget "Python 3.13" "Python.Python.3.13" "https://www.python.org/downloads/"
 }
 
 $parent = Split-Path -Parent $InstallDir
