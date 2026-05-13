@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -29,6 +30,8 @@ public sealed record ActionStatus(
 );
 
 public sealed record ProviderKey(string DisplayName, string EnvKey, string? BaseUrlKey = null, string? DefaultBaseUrl = null);
+public sealed record ModelProvider(string Name, string Slug, IReadOnlyList<string> Models, bool IsCurrent, bool IsUserDefined, string? Warning);
+public sealed record ModelOptions(string CurrentProvider, string CurrentModel, IReadOnlyList<ModelProvider> Providers);
 
 public sealed class HermesClient
 {
@@ -39,8 +42,8 @@ public sealed class HermesClient
         new ProviderKey("Gemini", "GEMINI_API_KEY"),
         new ProviderKey("DeepSeek", "DEEPSEEK_API_KEY"),
         new ProviderKey("OpenRouter", "OPENROUTER_API_KEY"),
-        new ProviderKey("Xiaomi MiMo", "XIAOMI_API_KEY"),
-        new ProviderKey("New API / One API", "NEW_API_API_KEY", "NEW_API_BASE_URL"),
+        new ProviderKey("Xiaomi / MiMo", "XIAOMI_API_KEY"),
+        new ProviderKey("New API / One API", "NEW_API_API_KEY", "NEW_API_BASE_URL", "http://127.0.0.1:3000/v1"),
         new ProviderKey("DashScope / Qwen", "DASHSCOPE_API_KEY"),
         new ProviderKey("Kimi / Moonshot", "KIMI_API_KEY"),
         new ProviderKey("MiniMax", "MINIMAX_API_KEY"),
@@ -151,7 +154,7 @@ public sealed class HermesClient
 
     public async Task<ActionStatus> RestartGatewayAsync(CancellationToken cancellationToken)
     {
-        await PostAsync("/api/gateway/restart", cancellationToken);
+        await SendAuthedAsync(HttpMethod.Post, "/api/gateway/restart", null, cancellationToken);
         return await GetActionStatusAsync("gateway-restart", cancellationToken);
     }
 
@@ -167,7 +170,12 @@ public sealed class HermesClient
 
     public async Task<ActionStatus> GetActionStatusAsync(string name, CancellationToken cancellationToken)
     {
-        using var response = await _http.GetAsync($"{BaseUrl}/api/actions/{Uri.EscapeDataString(name)}/status?lines=500", cancellationToken);
+        using var response = await SendAuthedAsync(
+            HttpMethod.Get,
+            $"/api/actions/{Uri.EscapeDataString(name)}/status?lines=500",
+            null,
+            cancellationToken
+        );
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
@@ -188,6 +196,58 @@ public sealed class HermesClient
             GetInt(root, "pid"),
             lines
         );
+    }
+
+    public async Task<string> GetNativeSessionTokenAsync(CancellationToken cancellationToken)
+    {
+        using var response = await _http.GetAsync($"{BaseUrl}/api/native/session-token", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        return GetString(doc.RootElement, "token") ?? "";
+    }
+
+    public async Task<ModelOptions> GetModelOptionsAsync(CancellationToken cancellationToken)
+    {
+        using var response = await SendAuthedAsync(HttpMethod.Get, "/api/model/options", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        var root = doc.RootElement;
+        var providers = new List<ModelProvider>();
+        if (root.TryGetProperty("providers", out var providerArray) && providerArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in providerArray.EnumerateArray())
+            {
+                var models = new List<string>();
+                if (item.TryGetProperty("models", out var modelArray) && modelArray.ValueKind == JsonValueKind.Array)
+                {
+                    models.AddRange(modelArray.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0));
+                }
+                providers.Add(new ModelProvider(
+                    GetString(item, "name") ?? GetString(item, "slug") ?? "provider",
+                    GetString(item, "slug") ?? "",
+                    models,
+                    GetBool(item, "is_current"),
+                    GetBool(item, "is_user_defined"),
+                    GetString(item, "warning")
+                ));
+            }
+        }
+
+        return new ModelOptions(
+            GetString(root, "provider") ?? "",
+            GetString(root, "model") ?? "",
+            providers
+        );
+    }
+
+    public async Task SetMainModelAsync(string provider, string model, CancellationToken cancellationToken)
+    {
+        var body = JsonSerializer.Serialize(new { scope = "main", provider, model });
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        using var response = await SendAuthedAsync(HttpMethod.Post, "/api/model/set", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
     }
 
     public string ReadLocalLog(string name, int maxChars = 24000)
@@ -274,7 +334,18 @@ public sealed class HermesClient
         CancellationToken cancellationToken
     )
     {
-        SaveProviderKey(provider, apiKey, baseUrl);
+        if (dashboardOnline)
+        {
+            await SetEnvValueAsync(provider.EnvKey, apiKey.Trim(), cancellationToken);
+            if (!string.IsNullOrWhiteSpace(provider.BaseUrlKey))
+            {
+                await SetEnvValueAsync(provider.BaseUrlKey, baseUrl.Trim(), cancellationToken);
+            }
+        }
+        else
+        {
+            SaveProviderKey(provider, apiKey, baseUrl);
+        }
         if (provider.EnvKey != "NEW_API_API_KEY" || !dashboardOnline || string.IsNullOrWhiteSpace(baseUrl))
         {
             return;
@@ -289,14 +360,34 @@ public sealed class HermesClient
             model = ""
         });
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
-        using var response = await _http.PutAsync($"{BaseUrl}/api/model/custom-openai-provider", content, cancellationToken);
+        using var response = await SendAuthedAsync(HttpMethod.Put, "/api/model/custom-openai-provider", content, cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
-    private async Task PostAsync(string path, CancellationToken cancellationToken)
+    private async Task SetEnvValueAsync(string key, string value, CancellationToken cancellationToken)
     {
-        using var response = await _http.PostAsync($"{BaseUrl}{path}", content: null, cancellationToken);
+        var body = JsonSerializer.Serialize(new { key, value });
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        using var response = await SendAuthedAsync(HttpMethod.Put, "/api/env", content, cancellationToken);
         response.EnsureSuccessStatusCode();
+    }
+
+    private async Task<HttpResponseMessage> SendAuthedAsync(
+        HttpMethod method,
+        string path,
+        HttpContent? content,
+        CancellationToken cancellationToken
+    )
+    {
+        var token = await GetNativeSessionTokenAsync(cancellationToken);
+        using var request = new HttpRequestMessage(method, $"{BaseUrl}{path}");
+        request.Content = content;
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            request.Headers.Add("X-Hermes-Session-Token", token);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+        return await _http.SendAsync(request, cancellationToken);
     }
 
     private string ScriptPath(string name)

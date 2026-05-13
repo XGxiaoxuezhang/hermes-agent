@@ -113,6 +113,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 _PUBLIC_API_PATHS: frozenset = frozenset({
     "/api/status",
+    "/api/native/session-token",
     "/api/config/defaults",
     "/api/config/schema",
     "/api/model/info",
@@ -146,6 +147,11 @@ def _require_token(request: Request) -> None:
     """Validate the ephemeral session token.  Raises 401 on mismatch."""
     if not _has_valid_session_token(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def _is_loopback_client(request: Request) -> bool:
+    host = request.client.host if request.client else ""
+    return host in {"127.0.0.1", "::1", "localhost"}
 
 
 # Accepted Host header values for loopback binds. DNS rebinding attacks
@@ -244,6 +250,14 @@ async def auth_middleware(request: Request, call_next):
                 content={"detail": "Unauthorized"},
             )
     return await call_next(request)
+
+
+@app.get("/api/native/session-token")
+def native_session_token(request: Request):
+    """Return the dashboard token to a trusted native client on loopback only."""
+    if not _is_loopback_client(request):
+        raise HTTPException(status_code=403, detail="Native session token is loopback only")
+    return {"token": _SESSION_TOKEN}
 
 
 # ---------------------------------------------------------------------------

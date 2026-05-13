@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -12,6 +13,8 @@ public partial class MainWindow : Window
     private HermesStatus? _lastStatus;
     private string _selectedLog = "dashboard";
     private bool _refreshing;
+    private bool _loadingModels;
+    private GatewayClient? _gateway;
 
     public MainWindow()
     {
@@ -43,6 +46,10 @@ public partial class MainWindow : Window
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             _lastStatus = await _client.GetStatusAsync(cts.Token);
             RenderStatus(_lastStatus);
+            if (_lastStatus.DashboardOnline)
+            {
+                await RefreshModelsAsync(silent: true);
+            }
             await RefreshLogAsync();
             LastRefreshText.Text = $"已刷新 {DateTime.Now:HH:mm:ss}";
         }
@@ -60,8 +67,7 @@ public partial class MainWindow : Window
     private void RenderStatus(HermesStatus status)
     {
         PortText.Text = $"端口 {_client.Port}";
-        VersionText.Text = status.Version;
-        SessionsText.Text = status.ActiveSessions.ToString();
+        VersionText.Text = $"版本：{status.Version}";
 
         DashboardBadgeText.Text = status.DashboardOnline ? "在线" : "离线";
         DashboardBadgeText.Foreground = Brush(status.DashboardOnline ? "#047857" : "#B42318");
@@ -95,6 +101,47 @@ public partial class MainWindow : Window
             $"网关状态：{gatewayState}" +
             (string.IsNullOrWhiteSpace(status.GatewayExitReason) ? "" : $"\n上次退出：{status.GatewayExitReason}");
         FooterText.Text = "本机模式：界面只显示密钥文件路径，不读取或展示密钥值。";
+    }
+
+    private async Task RefreshModelsAsync(bool silent = false)
+    {
+        if (_loadingModels)
+        {
+            return;
+        }
+        _loadingModels = true;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+            var options = await _client.GetModelOptionsAsync(cts.Token);
+            CurrentModelText.Text = string.IsNullOrWhiteSpace(options.CurrentModel)
+                ? "未配置"
+                : $"{options.CurrentProvider}/{options.CurrentModel}";
+            ProviderList.ItemsSource = options.Providers;
+            ModelProviderCombo.ItemsSource = options.Providers;
+
+            var current = options.Providers.FirstOrDefault(p => p.Slug == options.CurrentProvider)
+                ?? options.Providers.FirstOrDefault();
+            if (current is not null)
+            {
+                ModelProviderCombo.SelectedItem = current;
+                ModelCombo.ItemsSource = current.Models;
+                ModelCombo.Text = options.CurrentModel;
+            }
+            ModelStatusText.Text = $"已读取 {options.Providers.Count} 个提供商。";
+        }
+        catch (Exception ex)
+        {
+            if (!silent)
+            {
+                MessageBox.Show(this, ex.Message, "读取模型失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            ModelStatusText.Text = "模型列表读取失败；后端离线或未完成初始化。";
+        }
+        finally
+        {
+            _loadingModels = false;
+        }
     }
 
     private async Task RefreshLogAsync()
@@ -161,6 +208,149 @@ public partial class MainWindow : Window
         InstallButton.IsEnabled = !busy;
     }
 
+    private async void ConnectChat_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync("正在连接聊天...", async () =>
+        {
+            if (_lastStatus?.DashboardOnline != true)
+            {
+                await _client.StartDashboardAsync();
+                await Task.Delay(1800);
+            }
+            if (_gateway is not null)
+            {
+                await _gateway.DisposeAsync();
+            }
+            _gateway = new GatewayClient(_client);
+            _gateway.EventReceived += OnGatewayEvent;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await _gateway.ConnectAsync(cts.Token);
+            ChatStatusText.Text = $"已连接，会话 {_gateway.SessionId}";
+            ChatList.Items.Add("系统：聊天已连接。");
+        });
+    }
+
+    private async void SendChat_Click(object sender, RoutedEventArgs e)
+    {
+        var text = ChatInputBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+        try
+        {
+            if (_gateway is null)
+            {
+                await ConnectChatAsyncForSend();
+            }
+            ChatInputBox.Clear();
+            ChatList.Items.Add($"你：{text}");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await _gateway!.SubmitAsync(text, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "发送失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task ConnectChatAsyncForSend()
+    {
+        _gateway = new GatewayClient(_client);
+        _gateway.EventReceived += OnGatewayEvent;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        await _gateway.ConnectAsync(cts.Token);
+        ChatStatusText.Text = $"已连接，会话 {_gateway.SessionId}";
+    }
+
+    private void ClearChat_Click(object sender, RoutedEventArgs e)
+    {
+        ChatList.Items.Clear();
+    }
+
+    private void OnGatewayEvent(GatewayEvent ev)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            switch (ev.Type)
+            {
+                case "message.start":
+                    ChatList.Items.Add("Hermes：");
+                    break;
+                case "message.delta":
+                    AppendToLastChatItem(GetPayloadText(ev.Payload));
+                    break;
+                case "message.complete":
+                    var text = GetPayloadText(ev.Payload);
+                    var last = ChatList.Items.Count > 0
+                        ? ChatList.Items[ChatList.Items.Count - 1]?.ToString() ?? ""
+                        : "";
+                    if (!string.IsNullOrWhiteSpace(text) && (ChatList.Items.Count == 0 || last == "Hermes："))
+                    {
+                        AppendToLastChatItem(text);
+                    }
+                    ChatStatusText.Text = "回复完成";
+                    break;
+                case "thinking.delta":
+                    ChatStatusText.Text = "正在思考...";
+                    break;
+                case "session.info":
+                    if (ev.Payload.TryGetProperty("model", out var model))
+                    {
+                        CurrentModelText.Text = model.GetString() ?? CurrentModelText.Text;
+                    }
+                    break;
+                case "error":
+                    ChatList.Items.Add($"错误：{GetPayloadText(ev.Payload)}");
+                    ChatStatusText.Text = "聊天出错";
+                    break;
+            }
+            if (ChatList.Items.Count > 0)
+            {
+                ChatList.ScrollIntoView(ChatList.Items[ChatList.Items.Count - 1]);
+            }
+        });
+    }
+
+    private void AppendToLastChatItem(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+        if (ChatList.Items.Count == 0)
+        {
+            ChatList.Items.Add($"Hermes：{text}");
+            return;
+        }
+        var index = ChatList.Items.Count - 1;
+        var last = ChatList.Items[index]?.ToString() ?? "";
+        if (!last.StartsWith("Hermes：", StringComparison.Ordinal))
+        {
+            ChatList.Items.Add($"Hermes：{text}");
+        }
+        else
+        {
+            ChatList.Items[index] = last + text;
+        }
+    }
+
+    private static string GetPayloadText(JsonElement payload)
+    {
+        if (payload.ValueKind == JsonValueKind.Object)
+        {
+            if (payload.TryGetProperty("text", out var text))
+            {
+                return text.GetString() ?? "";
+            }
+            if (payload.TryGetProperty("message", out var message))
+            {
+                return message.GetString() ?? "";
+            }
+        }
+        return payload.ToString();
+    }
+
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         await RefreshAllAsync();
@@ -191,6 +381,49 @@ public partial class MainWindow : Window
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             await _client.RestartGatewayAsync(cts.Token);
             _selectedLog = "restart";
+        });
+    }
+
+    private async void RefreshModels_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshModelsAsync();
+    }
+
+    private void ModelProviderCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ModelProviderCombo.SelectedItem is not ModelProvider provider)
+        {
+            return;
+        }
+        ModelCombo.ItemsSource = provider.Models;
+        if (provider.Models.Count > 0 && string.IsNullOrWhiteSpace(ModelCombo.Text))
+        {
+            ModelCombo.SelectedIndex = 0;
+        }
+        ModelStatusText.Text = string.IsNullOrWhiteSpace(provider.Warning)
+            ? $"{provider.Name}：{provider.Models.Count} 个模型"
+            : provider.Warning;
+    }
+
+    private async void SaveModel_Click(object sender, RoutedEventArgs e)
+    {
+        if (ModelProviderCombo.SelectedItem is not ModelProvider provider)
+        {
+            MessageBox.Show(this, "请先选择提供商。", "Hermes Agent", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var model = ModelCombo.Text.Trim();
+        if (string.IsNullOrWhiteSpace(provider.Slug) || string.IsNullOrWhiteSpace(model))
+        {
+            MessageBox.Show(this, "提供商和模型不能为空。", "Hermes Agent", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        await RunUiActionAsync("正在保存模型...", async () =>
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+            await _client.SetMainModelAsync(provider.Slug, model, cts.Token);
+            CurrentModelText.Text = $"{provider.Slug}/{model}";
+            ModelStatusText.Text = "模型已保存；新会话会使用它。";
         });
     }
 
