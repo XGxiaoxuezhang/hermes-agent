@@ -3,7 +3,8 @@ param(
     [switch]$NoStart,
     [switch]$NoOpen,
     [switch]$SkipWebBuild,
-    [switch]$RecreateVenv
+    [switch]$RecreateVenv,
+    [string]$PythonCommand = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,9 +48,17 @@ function Install-WithWinget {
 
     Write-Step "Installing $Name with winget (user scope first)"
     & winget install --id $WingetId --exact --scope user --accept-package-agreements --accept-source-agreements
+    Refresh-Path
+    if (Get-Command $Name -ErrorAction SilentlyContinue) {
+        return
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "$Name user-scope install failed or is not supported. Trying default installer scope; this may show an administrator/UAC prompt."
         & winget install --id $WingetId --exact --accept-package-agreements --accept-source-agreements
+        Refresh-Path
+        if (Get-Command $Name -ErrorAction SilentlyContinue) {
+            return
+        }
     }
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to install $Name with winget. If an administrator/UAC prompt appeared and was cancelled, accept it or install manually: $ManualUrl"
@@ -95,22 +104,95 @@ function Test-CommandExitZero {
 }
 
 function Test-CompatiblePython {
+    return [bool](Get-CompatiblePythonCommand)
+}
+
+function Test-PythonCommand {
+    param([string]$Command)
+    if (-not $Command) {
+        return $false
+    }
+    try {
+        $version = Get-PythonCommandVersion $Command
+        return $version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.13"
+    } catch {
+        return $false
+    }
+}
+
+function Get-PythonCommandVersion {
+    param([string]$Command)
+    $parts = Split-PythonCommand $Command
+    $script = "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    $output = & $parts.File @($parts.Args + @("-c", $script)) 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        return ""
+    }
+    return ([string]$output).Trim()
+}
+
+function Split-PythonCommand {
+    param([string]$Command)
+    $trimmed = $Command.Trim()
+    if ($trimmed.StartsWith('"')) {
+        $end = $trimmed.IndexOf('"', 1)
+        if ($end -gt 0) {
+            $file = $trimmed.Substring(1, $end - 1)
+            $rest = $trimmed.Substring($end + 1).Trim()
+            return @{ File = $file; Args = @($rest -split " " | Where-Object { $_ }) }
+        }
+    }
+    $parts = $trimmed -split " "
+    return @{ File = $parts[0]; Args = @($parts | Select-Object -Skip 1) }
+}
+
+function Get-CompatiblePythonCommand {
+    if ($PythonCommand -and (Test-PythonCommand $PythonCommand)) {
+        return $PythonCommand
+    }
+    $candidates = @()
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        if (Test-CommandExitZero "py" @("-3.13", "-c", "import sys")) { return $true }
-        if (Test-CommandExitZero "py" @("-3.11", "-c", "import sys")) { return $true }
+        if (Test-CommandExitZero "py" @("-3.13", "-c", "import sys")) { return "py -3.13" }
+        if (Test-CommandExitZero "py" @("-3.11", "-c", "import sys")) { return "py -3.11" }
     }
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        $version = ""
+    if (Get-Command python3.13 -ErrorAction SilentlyContinue) {
+        if (Test-CommandExitZero "python3.13" @("-c", "import sys")) { return "python3.13" }
+    }
+    if (Get-Command python3.11 -ErrorAction SilentlyContinue) {
+        if (Test-CommandExitZero "python3.11" @("-c", "import sys")) { return "python3.11" }
+    }
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd) {
+        $candidates += $pythonCmd.Source
+    }
+    $candidates += @(
+        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+        "$env:ProgramFiles\Python313\python.exe",
+        "$env:ProgramFiles\Python311\python.exe",
+        "${env:ProgramFiles(x86)}\Python313\python.exe",
+        "${env:ProgramFiles(x86)}\Python311\python.exe"
+    )
+    foreach ($searchRoot in @("$env:LOCALAPPDATA\Programs\Python", "$env:ProgramFiles", "${env:ProgramFiles(x86)}")) {
+        if (Test-Path $searchRoot) {
+            $candidates += Get-ChildItem -Path $searchRoot -Filter python.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -match "Python(311|313)" } |
+                ForEach-Object { $_.FullName }
+        }
+    }
+    foreach ($candidate in $candidates) {
+        if (-not $candidate -or -not (Test-Path $candidate)) {
+            continue
+        }
         try {
-            $version = (& python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null).Trim()
+            $version = (& $candidate -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null).Trim()
+            if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.13") {
+                return $candidate
+            }
         } catch {
-            $version = ""
-        }
-        if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.13") {
-            return $true
         }
     }
-    return $false
+    return ""
 }
 
 function Invoke-Checked {
@@ -141,19 +223,12 @@ function Get-PythonVersionText {
 function New-HermesVenv {
     param([string]$VenvPath)
 
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3.13 -m venv $VenvPath
-        if ($LASTEXITCODE -eq 0) {
-            return
-        }
-        & py -3.11 -m venv $VenvPath
-        if ($LASTEXITCODE -eq 0) {
-            return
-        }
+    $command = Get-CompatiblePythonCommand
+    if (-not $command) {
+        throw "Python 3.11/3.13 is required but Hermes cannot find it. Disable Windows Store python aliases or reinstall Python 3.13, then retry."
     }
-
-    Require-Command "python" "Install Python 3.11 or 3.13, or enable the py launcher."
-    Invoke-Checked "python" "-m" "venv" $VenvPath
+    $parts = Split-PythonCommand $command
+    Invoke-Checked $parts.File @($parts.Args + @("-m", "venv", $VenvPath))
 }
 
 function Stop-DashboardPort {
@@ -294,6 +369,12 @@ Ensure-Command "node" "OpenJS.NodeJS.LTS" "https://nodejs.org/"
 if (-not (Test-CompatiblePython)) {
     Install-WithWinget "Python 3.13" "Python.Python.3.13" "https://www.python.org/downloads/"
 }
+
+$resolvedPythonCommand = Get-CompatiblePythonCommand
+if (-not $resolvedPythonCommand) {
+    throw "Python 3.11/3.13 is required but Hermes cannot find it. Disable Windows Store python aliases or reinstall Python 3.13, then retry."
+}
+Write-Step "Python is ready: $resolvedPythonCommand"
 
 if ($RecreateVenv -and (Test-Path $venv)) {
     Stop-DashboardPort $Port $repo

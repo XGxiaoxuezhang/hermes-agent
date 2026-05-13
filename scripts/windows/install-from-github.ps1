@@ -108,9 +108,17 @@ function Install-WithWinget {
 
     Write-Step "Installing $Name with winget (user scope first)"
     & winget install --id $WingetId --exact --scope user --accept-package-agreements --accept-source-agreements
+    Refresh-Path
+    if (Get-Command $Name -ErrorAction SilentlyContinue) {
+        return
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "$Name user-scope install failed or is not supported. Trying default installer scope; this may show an administrator/UAC prompt."
         & winget install --id $WingetId --exact --accept-package-agreements --accept-source-agreements
+        Refresh-Path
+        if (Get-Command $Name -ErrorAction SilentlyContinue) {
+            return
+        }
     }
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to install $Name with winget. If an administrator/UAC prompt appeared and was cancelled, accept it or install manually: $ManualUrl"
@@ -160,6 +168,12 @@ function Test-CompatiblePython {
         if (Test-CommandExitZero "py" @("-3.13", "-c", "import sys")) { return $true }
         if (Test-CommandExitZero "py" @("-3.11", "-c", "import sys")) { return $true }
     }
+    if (Get-Command python3.13 -ErrorAction SilentlyContinue) {
+        if (Test-CommandExitZero "python3.13" @("-c", "import sys")) { return $true }
+    }
+    if (Get-Command python3.11 -ErrorAction SilentlyContinue) {
+        if (Test-CommandExitZero "python3.11" @("-c", "import sys")) { return $true }
+    }
     if (Get-Command python -ErrorAction SilentlyContinue) {
         $version = ""
         try {
@@ -174,6 +188,52 @@ function Test-CompatiblePython {
     return $false
 }
 
+function Get-CompatiblePythonCommand {
+    $candidates = @()
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        if (Test-CommandExitZero "py" @("-3.13", "-c", "import sys")) { return "py -3.13" }
+        if (Test-CommandExitZero "py" @("-3.11", "-c", "import sys")) { return "py -3.11" }
+    }
+    if (Get-Command python3.13 -ErrorAction SilentlyContinue) {
+        if (Test-CommandExitZero "python3.13" @("-c", "import sys")) { return "python3.13" }
+    }
+    if (Get-Command python3.11 -ErrorAction SilentlyContinue) {
+        if (Test-CommandExitZero "python3.11" @("-c", "import sys")) { return "python3.11" }
+    }
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd) {
+        $candidates += $pythonCmd.Source
+    }
+    $candidates += @(
+        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+        "$env:ProgramFiles\Python313\python.exe",
+        "$env:ProgramFiles\Python311\python.exe",
+        "${env:ProgramFiles(x86)}\Python313\python.exe",
+        "${env:ProgramFiles(x86)}\Python311\python.exe"
+    )
+    foreach ($searchRoot in @("$env:LOCALAPPDATA\Programs\Python", "$env:ProgramFiles", "${env:ProgramFiles(x86)}")) {
+        if (Test-Path $searchRoot) {
+            $candidates += Get-ChildItem -Path $searchRoot -Filter python.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -match "Python(311|313)" } |
+                ForEach-Object { $_.FullName }
+        }
+    }
+    foreach ($candidate in $candidates) {
+        if (-not $candidate -or -not (Test-Path $candidate)) {
+            continue
+        }
+        try {
+            $version = (& $candidate -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null).Trim()
+            if ($version -and [version]$version -ge [version]"3.11" -and [version]$version -le [version]"3.13") {
+                return $candidate
+            }
+        } catch {
+        }
+    }
+    return ""
+}
+
 Write-Host ""
 Write-Host "Hermes Agent fork installer" -ForegroundColor Green
 Write-Host "Repo:       $RepoUrl"
@@ -185,8 +245,15 @@ Ensure-Command "git" "Git.Git" "https://git-scm.com/download/win"
 Ensure-Command "node" "OpenJS.NodeJS.LTS" "https://nodejs.org/"
 
 if (-not (Test-CompatiblePython)) {
+    Write-Step "Python 3.11/3.13 not found; installing Python 3.13"
     Install-WithWinget "Python 3.13" "Python.Python.3.13" "https://www.python.org/downloads/"
 }
+
+$pythonCommand = Get-CompatiblePythonCommand
+if (-not $pythonCommand) {
+    throw "Python 3.11/3.13 is required but Hermes cannot find it. Disable Windows Store python aliases or reinstall Python 3.13, then retry."
+}
+Write-Step "Python is ready: $pythonCommand"
 
 $parent = Split-Path -Parent $InstallDir
 if (-not (Test-Path $parent)) {
@@ -225,6 +292,8 @@ if (-not (Test-Path $localInstaller)) {
 
 Write-Step "Running local installer"
 $installerArgs = @("-ExecutionPolicy", "Bypass", "-File", $localInstaller, "-Port", "$Port")
+$installerArgs += "-PythonCommand"
+$installerArgs += $pythonCommand
 if ($NoStart) {
     $installerArgs += "-NoStart"
 }
