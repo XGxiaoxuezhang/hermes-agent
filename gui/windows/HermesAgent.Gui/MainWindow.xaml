@@ -88,7 +88,7 @@
             <Button x:Name="InstallButton" Content="一键安装 / 修复" Click="InstallRepair_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,8"/>
             <Button x:Name="UpdateButton" Content="终端更新" Click="UpdateHermes_Click" Style="{StaticResource DangerButton}" HorizontalAlignment="Stretch"/>
           </StackPanel>
-          <TextBlock x:Name="HintText" DockPanel.Dock="Bottom" Text="就绪" Foreground="#475467" TextWrapping="Wrap" Margin="0,18,0,0"/>
+          <TextBlock x:Name="HintText" DockPanel.Dock="Bottom" Text="正在检测后端服务..." Foreground="#475467" TextWrapping="Wrap" Margin="0,18,0,0"/>
         </DockPanel>
       </Border>
 

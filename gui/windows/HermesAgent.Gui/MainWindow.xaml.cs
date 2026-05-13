@@ -56,7 +56,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             DetailText.Text = ex.Message;
-            HintText.Text = "刷新失败。";
+            HintText.Text = "状态刷新失败，后端可能未启动。";
         }
         finally
         {
@@ -90,6 +90,7 @@ public partial class MainWindow : Window
                 "控制台后端不可达。可以点击左侧“启动控制台后端”。\n" +
                 $"最近错误：{status.Error ?? "无详细信息"}";
             ChatStatusText.Text = $"后端未连接：{status.Error ?? "本地服务未响应"}";
+            HintText.Text = "后端离线：聊天、模型和密钥接口不可用。请点击“启动后端”。";
             FooterText.Text = "离线状态下仍可查看本地日志、启动后端或打开更新终端。";
             return;
         }
@@ -104,6 +105,9 @@ public partial class MainWindow : Window
         ChatStatusText.Text = status.GatewayRunning
             ? $"后端在线，消息网关运行中。{_client.BaseUrl}"
             : $"后端在线，但消息网关未运行。聊天仍可用；平台消息需要去“运行 / 日志”里重启网关。{_client.BaseUrl}";
+        HintText.Text = status.GatewayRunning
+            ? $"后端在线，网关运行中。{_client.BaseUrl}"
+            : $"后端在线，网关未运行。聊天可用；平台消息需重启网关。{_client.BaseUrl}";
         FooterText.Text = "本机模式：界面只显示密钥文件路径，不读取或展示密钥值。";
     }
 
@@ -199,7 +203,14 @@ public partial class MainWindow : Window
         finally
         {
             SetBusy(false);
-            HintText.Text = "就绪";
+            if (_lastStatus is not null)
+            {
+                RenderStatus(_lastStatus);
+            }
+            else
+            {
+                HintText.Text = "状态未知：尚未完成后端检测。";
+            }
         }
     }
 
