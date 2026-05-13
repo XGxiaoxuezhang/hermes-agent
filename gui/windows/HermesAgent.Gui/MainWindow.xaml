@@ -83,7 +83,18 @@
             <Button x:Name="StartButton" Content="启动控制台后端" Click="StartDashboard_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,9"/>
             <Button x:Name="StopButton" Content="停止控制台后端" Click="StopDashboard_Click" Style="{StaticResource FlatButton}" HorizontalAlignment="Stretch" Margin="0,0,0,9"/>
             <Button x:Name="RestartButton" Content="重启消息网关" Click="RestartGateway_Click" Style="{StaticResource FlatButton}" HorizontalAlignment="Stretch" Margin="0,0,0,9"/>
+            <Button x:Name="InstallButton" Content="一键安装 / 修复" Click="InstallRepair_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,9"/>
             <Button x:Name="UpdateButton" Content="打开终端执行更新" Click="UpdateHermes_Click" Style="{StaticResource DangerButton}" HorizontalAlignment="Stretch" Margin="0,0,0,18"/>
+
+            <TextBlock Text="API Key" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,4,0,10"/>
+            <ComboBox x:Name="ProviderCombo" MinHeight="34" SelectionChanged="ProviderCombo_SelectionChanged"/>
+            <PasswordBox x:Name="ApiKeyBox" MinHeight="34" Margin="0,8,0,0"/>
+            <TextBox x:Name="BaseUrlBox" MinHeight="34" Margin="0,8,0,0" Visibility="Collapsed"/>
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,16">
+              <Button Content="保存密钥" Click="SaveKey_Click" Style="{StaticResource PrimaryButton}" MinWidth="96"/>
+              <Button Content="打开密钥文件" Click="OpenEnv_Click" Style="{StaticResource FlatButton}" MinWidth="112"/>
+            </StackPanel>
+            <TextBlock x:Name="KeyStatusText" Text="选择提供商后粘贴 API Key。" Foreground="#667085" TextWrapping="Wrap" Margin="0,0,0,14"/>
 
             <TextBlock Text="连接设置" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,4,0,10"/>
             <Grid Margin="0,0,0,10">
@@ -107,7 +118,7 @@
             <TextBlock Text="本地文件" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,4,0,10"/>
             <UniformGrid Columns="2" Rows="3">
               <Button Content="打开配置" Click="OpenConfig_Click" Style="{StaticResource FlatButton}" Margin="0,0,7,8"/>
-              <Button Content="打开密钥" Click="OpenEnv_Click" Style="{StaticResource FlatButton}" Margin="7,0,0,8"/>
+              <Button Content="密钥文件" Click="OpenEnv_Click" Style="{StaticResource FlatButton}" Margin="7,0,0,8"/>
               <Button Content="日志目录" Click="OpenLogs_Click" Style="{StaticResource FlatButton}" Margin="0,0,7,8"/>
               <Button Content="复制地址" Click="CopyUrl_Click" Style="{StaticResource FlatButton}" Margin="7,0,0,8"/>
               <Button Content="打开网页" Click="OpenDashboard_Click" Style="{StaticResource FlatButton}" Margin="0,0,7,0"/>

@@ -6,6 +6,9 @@ Hermes Python 后端和 Windows 脚本，用来处理本机安装、更新、网
 ## 当前功能
 
 - 中文原生界面
+- 自包含发布包可直接双击运行，不要求用户预装 .NET
+- 一键安装 / 修复 Hermes 后端
+- 内置常用 API Key 配置，写入 `~/.hermes/.env`
 - 控制台后端状态轮询
 - 消息网关运行状态、PID、活跃会话数
 - 启动 / 停止控制台后端
@@ -31,9 +34,23 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 bin\Release\net6.0-windows\HermesAgent.Gui.exe
 ```
 
+生成给新手用的自包含 exe：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\publish-self-contained.ps1
+```
+
+输出文件：
+
+```text
+publish\win-x64\HermesAgent.Gui.exe
+```
+
 ## 运行说明
 
 - 默认端口：`9119`
 - 默认仓库目录会自动从程序所在位置向上查找
 - 可用环境变量 `HERMES_REPO_DIR` 指定仓库目录
 - 密钥仍由 Hermes 写入原有 env 文件；控制台只显示路径，不展示密钥值
+- “一键安装 / 修复”会打开可见终端自动安装 Git、Node、Python 和 Hermes
+  后端。用户不需要手动运行这些命令。

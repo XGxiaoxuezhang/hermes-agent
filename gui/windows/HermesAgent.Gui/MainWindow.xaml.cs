@@ -17,6 +17,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         RepoRootBox.Text = _client.RepoRoot;
+        ProviderCombo.ItemsSource = HermesClient.ProviderKeys;
+        ProviderCombo.DisplayMemberPath = nameof(ProviderKey.DisplayName);
+        ProviderCombo.SelectedIndex = 0;
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
         _timer.Tick += async (_, _) => await RefreshAllAsync();
@@ -73,6 +76,7 @@ public partial class MainWindow : Window
         StartButton.IsEnabled = !status.DashboardOnline;
         StopButton.IsEnabled = status.DashboardOnline;
         RestartButton.IsEnabled = status.DashboardOnline;
+        InstallButton.IsEnabled = true;
 
         if (!status.DashboardOnline)
         {
@@ -154,6 +158,7 @@ public partial class MainWindow : Window
         StopButton.IsEnabled = !busy && (_lastStatus?.DashboardOnline == true);
         RestartButton.IsEnabled = !busy && (_lastStatus?.DashboardOnline == true);
         UpdateButton.IsEnabled = !busy;
+        InstallButton.IsEnabled = !busy;
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
@@ -194,6 +199,15 @@ public partial class MainWindow : Window
         await RunUiActionAsync("已打开更新终端，请在终端中查看进度。", async () =>
         {
             await _client.UpdateVisibleAsync();
+            _selectedLog = "update";
+        });
+    }
+
+    private async void InstallRepair_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync("已打开安装/修复终端，请按终端提示等待完成。", async () =>
+        {
+            await _client.InstallOrRepairVisibleAsync();
             _selectedLog = "update";
         });
     }
@@ -259,7 +273,7 @@ public partial class MainWindow : Window
 
     private void OpenEnv_Click(object sender, RoutedEventArgs e)
     {
-        SafeOpen(_lastStatus?.EnvPath);
+        SafeOpen(string.IsNullOrWhiteSpace(_lastStatus?.EnvPath) ? _client.DefaultEnvPath : _lastStatus.EnvPath);
     }
 
     private void OpenLogs_Click(object sender, RoutedEventArgs e)
@@ -320,6 +334,58 @@ public partial class MainWindow : Window
         {
             _timer.Stop();
             HintText.Text = "自动刷新已暂停。";
+        }
+    }
+
+    private void ProviderCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ProviderCombo.SelectedItem is not ProviderKey provider)
+        {
+            return;
+        }
+        ApiKeyBox.Password = "";
+        BaseUrlBox.Text = provider.BaseUrlKey is null ? "" : _client.GetEnvValue(provider.BaseUrlKey);
+        BaseUrlBox.Visibility = provider.BaseUrlKey is null ? Visibility.Collapsed : Visibility.Visible;
+        var existing = _client.GetEnvValue(provider.EnvKey);
+        KeyStatusText.Text = string.IsNullOrWhiteSpace(existing)
+            ? $"{provider.DisplayName} 尚未配置。保存后会写入 {_client.DefaultEnvPath}"
+            : $"{provider.DisplayName} 已配置。重新粘贴可覆盖，留空不会改动。";
+    }
+
+    private async void SaveKey_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProviderCombo.SelectedItem is not ProviderKey provider)
+        {
+            return;
+        }
+        var apiKey = ApiKeyBox.Password.Trim();
+        if (string.IsNullOrWhiteSpace(apiKey) && string.IsNullOrWhiteSpace(_client.GetEnvValue(provider.EnvKey)))
+        {
+            MessageBox.Show(this, "请先粘贴 API Key。", "Hermes Agent 控制台", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            apiKey = _client.GetEnvValue(provider.EnvKey);
+        }
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            await _client.SaveProviderKeyAsync(
+                provider,
+                apiKey,
+                BaseUrlBox.Text,
+                _lastStatus?.DashboardOnline == true,
+                cts.Token
+            );
+            ApiKeyBox.Password = "";
+            KeyStatusText.Text = $"已保存 {provider.DisplayName} 密钥。重启后端或开始新会话后生效。";
+            HintText.Text = "密钥已保存。";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
