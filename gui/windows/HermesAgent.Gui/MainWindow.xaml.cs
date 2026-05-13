@@ -43,7 +43,7 @@ public partial class MainWindow : Window
         _refreshing = true;
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             _lastStatus = await _client.GetStatusAsync(cts.Token);
             RenderStatus(_lastStatus);
             if (_lastStatus.DashboardOnline)
@@ -230,7 +230,11 @@ public partial class MainWindow : Window
             if (_lastStatus?.DashboardOnline != true)
             {
                 await _client.StartDashboardAsync();
-                await Task.Delay(1800);
+                var started = await WaitForDashboardOnlineAsync(TimeSpan.FromSeconds(25));
+                if (!started)
+                {
+                    throw new InvalidOperationException("后端启动后仍未响应，请查看控制台日志。");
+                }
             }
             if (_gateway is not null)
             {
@@ -272,6 +276,15 @@ public partial class MainWindow : Window
 
     private async Task ConnectChatAsyncForSend()
     {
+        if (_lastStatus?.DashboardOnline != true)
+        {
+            await _client.StartDashboardAsync();
+            var started = await WaitForDashboardOnlineAsync(TimeSpan.FromSeconds(25));
+            if (!started)
+            {
+                throw new InvalidOperationException("后端启动后仍未响应，请查看控制台日志。");
+            }
+        }
         _gateway = new GatewayClient(_client);
         _gateway.EventReceived += OnGatewayEvent;
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -377,9 +390,42 @@ public partial class MainWindow : Window
     {
         await RunUiActionAsync("正在启动控制台后端...", async () =>
         {
+            using (var probeCts = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+            {
+                var existing = await _client.GetStatusAsync(probeCts.Token);
+                if (existing.DashboardOnline)
+                {
+                    _lastStatus = existing;
+                    RenderStatus(existing);
+                    HintText.Text = $"后端已经在线：{_client.BaseUrl}";
+                    return;
+                }
+            }
+
             await _client.StartDashboardAsync();
-            await Task.Delay(1800);
+            var started = await WaitForDashboardOnlineAsync(TimeSpan.FromSeconds(25));
+            HintText.Text = started
+                ? $"后端已启动：{_client.BaseUrl}"
+                : "已发起启动，但后端暂未响应。请查看控制台日志或稍后刷新。";
         });
+    }
+
+    private async Task<bool> WaitForDashboardOnlineAsync(TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var status = await _client.GetStatusAsync(cts.Token);
+            if (status.DashboardOnline)
+            {
+                _lastStatus = status;
+                RenderStatus(status);
+                return true;
+            }
+            await Task.Delay(1000);
+        }
+        return false;
     }
 
     private async void StopDashboard_Click(object sender, RoutedEventArgs e)

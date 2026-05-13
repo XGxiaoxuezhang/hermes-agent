@@ -53,7 +53,7 @@ public sealed class HermesClient
 
     private readonly HttpClient _http = new()
     {
-        Timeout = TimeSpan.FromSeconds(3)
+        Timeout = TimeSpan.FromSeconds(15)
     };
 
     public int Port { get; set; } = 9119;
@@ -425,11 +425,7 @@ public sealed class HermesClient
             }
             try
             {
-                var text = File.ReadAllText(path);
-                if (text.Length > maxChars)
-                {
-                    text = text[^maxChars..];
-                }
+                var text = ReadTextTailShared(path, maxChars);
                 parts.Add($"== {path} =={Environment.NewLine}{text}");
             }
             catch (Exception ex)
@@ -438,6 +434,24 @@ public sealed class HermesClient
             }
         }
         return string.Join($"{Environment.NewLine}{Environment.NewLine}", parts);
+    }
+
+    private static string ReadTextTailShared(string path, int maxChars)
+    {
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete
+        );
+        var maxBytes = Math.Max(maxChars * 4, 4096);
+        if (stream.Length > maxBytes)
+        {
+            stream.Seek(-maxBytes, SeekOrigin.End);
+        }
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var text = reader.ReadToEnd();
+        return text.Length > maxChars ? text[^maxChars..] : text;
     }
 
     private static Dictionary<string, string> LoadEnvFile(string path)
