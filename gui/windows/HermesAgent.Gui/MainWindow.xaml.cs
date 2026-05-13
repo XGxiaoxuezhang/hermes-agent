@@ -306,6 +306,11 @@ public partial class MainWindow : Window
 
     private void AutoRefresh_Changed(object sender, RoutedEventArgs e)
     {
+        if (_timer is null)
+        {
+            return;
+        }
+
         if (AutoRefreshBox.IsChecked == true)
         {
             _timer.Start();
