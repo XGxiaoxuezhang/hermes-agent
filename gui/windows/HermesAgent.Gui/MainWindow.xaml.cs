@@ -89,6 +89,7 @@ public partial class MainWindow : Window
             DetailText.Text =
                 "控制台后端不可达。可以点击左侧“启动控制台后端”。\n" +
                 $"最近错误：{status.Error ?? "无详细信息"}";
+            ChatStatusText.Text = $"后端未连接：{status.Error ?? "本地服务未响应"}";
             FooterText.Text = "离线状态下仍可查看本地日志、启动后端或打开更新终端。";
             return;
         }
@@ -100,6 +101,9 @@ public partial class MainWindow : Window
             $"密钥文件：{status.EnvPath}\n" +
             $"网关状态：{gatewayState}" +
             (string.IsNullOrWhiteSpace(status.GatewayExitReason) ? "" : $"\n上次退出：{status.GatewayExitReason}");
+        ChatStatusText.Text = status.GatewayRunning
+            ? $"后端在线，消息网关运行中。{_client.BaseUrl}"
+            : $"后端在线，但消息网关未运行。聊天仍可用；平台消息需要去“运行 / 日志”里重启网关。{_client.BaseUrl}";
         FooterText.Text = "本机模式：界面只显示密钥文件路径，不读取或展示密钥值。";
     }
 
@@ -225,7 +229,8 @@ public partial class MainWindow : Window
             _gateway.EventReceived += OnGatewayEvent;
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             await _gateway.ConnectAsync(cts.Token);
-            ChatStatusText.Text = $"已连接，会话 {_gateway.SessionId}";
+            await RefreshAllAsync();
+            ChatStatusText.Text = $"聊天已连接，会话 {_gateway.SessionId}。后端服务已启动。";
             ChatList.Items.Add("系统：聊天已连接。");
         });
     }
@@ -260,7 +265,8 @@ public partial class MainWindow : Window
         _gateway.EventReceived += OnGatewayEvent;
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         await _gateway.ConnectAsync(cts.Token);
-        ChatStatusText.Text = $"已连接，会话 {_gateway.SessionId}";
+        await RefreshAllAsync();
+        ChatStatusText.Text = $"聊天已连接，会话 {_gateway.SessionId}。后端服务已启动。";
     }
 
     private void ClearChat_Click(object sender, RoutedEventArgs e)
@@ -577,12 +583,25 @@ public partial class MainWindow : Window
             return;
         }
         ApiKeyBox.Password = "";
-        BaseUrlBox.Text = provider.BaseUrlKey is null ? "" : _client.GetEnvValue(provider.BaseUrlKey);
-        BaseUrlBox.Visibility = provider.BaseUrlKey is null ? Visibility.Collapsed : Visibility.Visible;
+        var needsBaseUrl = provider.BaseUrlKey is not null;
+        var savedBaseUrl = needsBaseUrl ? _client.GetEnvValue(provider.BaseUrlKey!) : "";
+        BaseUrlBox.Text = needsBaseUrl ? (string.IsNullOrWhiteSpace(savedBaseUrl) ? provider.DefaultBaseUrl ?? "" : savedBaseUrl) : "";
+        BaseUrlLabel.Visibility = needsBaseUrl ? Visibility.Visible : Visibility.Collapsed;
+        BaseUrlBox.Visibility = needsBaseUrl ? Visibility.Visible : Visibility.Collapsed;
+        BaseUrlHintText.Visibility = needsBaseUrl ? Visibility.Visible : Visibility.Collapsed;
         var existing = _client.GetEnvValue(provider.EnvKey);
-        KeyStatusText.Text = string.IsNullOrWhiteSpace(existing)
-            ? $"{provider.DisplayName} 尚未配置。保存后会写入 {_client.DefaultEnvPath}"
-            : $"{provider.DisplayName} 已配置。重新粘贴可覆盖，留空不会改动。";
+        if (needsBaseUrl)
+        {
+            KeyStatusText.Text = string.IsNullOrWhiteSpace(existing)
+                ? $"{provider.DisplayName} 尚未配置。这里需要同时填 API Key 和 Base URL，保存后会写入 {_client.DefaultEnvPath}"
+                : $"{provider.DisplayName} 已配置。API Key 留空不会改动；Base URL 可直接修改。";
+        }
+        else
+        {
+            KeyStatusText.Text = string.IsNullOrWhiteSpace(existing)
+                ? $"{provider.DisplayName} 尚未配置。保存后会写入 {_client.DefaultEnvPath}"
+                : $"{provider.DisplayName} 已配置。重新粘贴可覆盖，留空不会改动。";
+        }
     }
 
     private async void SaveKey_Click(object sender, RoutedEventArgs e)
@@ -601,6 +620,11 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             apiKey = _client.GetEnvValue(provider.EnvKey);
+        }
+        if (provider.BaseUrlKey is not null && string.IsNullOrWhiteSpace(BaseUrlBox.Text))
+        {
+            MessageBox.Show(this, "New API / One API 需要填写 Base URL，例如 http://127.0.0.1:3000/v1。", "Hermes Agent 控制台", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
         }
         try
         {

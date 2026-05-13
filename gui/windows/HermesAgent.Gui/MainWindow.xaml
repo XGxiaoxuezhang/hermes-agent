@@ -174,8 +174,9 @@
                 <ComboBox x:Name="ProviderCombo" MinHeight="34" SelectionChanged="ProviderCombo_SelectionChanged"/>
                 <TextBlock Text="API Key" Foreground="#475467" Margin="0,14,0,6"/>
                 <PasswordBox x:Name="ApiKeyBox" MinHeight="34"/>
-                <TextBlock Text="Base URL（New API / One API 需要）" Foreground="#475467" Margin="0,14,0,6"/>
+                <TextBlock x:Name="BaseUrlLabel" Text="Base URL（New API / One API）" Foreground="#475467" Margin="0,14,0,6"/>
                 <TextBox x:Name="BaseUrlBox" MinHeight="34"/>
+                <TextBlock x:Name="BaseUrlHintText" Text="填写你的 New API 地址，例如 http://127.0.0.1:3000/v1 或 https://你的域名/v1。" Foreground="#667085" TextWrapping="Wrap" Margin="0,6,0,0"/>
                 <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                   <Button Content="保存密钥" Click="SaveKey_Click" Style="{StaticResource PrimaryButton}" MinWidth="96"/>
                   <Button Content="打开密钥文件" Click="OpenEnv_Click" Style="{StaticResource FlatButton}" MinWidth="116" Margin="8,0,0,0"/>

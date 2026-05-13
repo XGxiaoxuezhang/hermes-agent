@@ -38,12 +38,12 @@ public sealed class HermesClient
     public static readonly IReadOnlyList<ProviderKey> ProviderKeys = new[]
     {
         new ProviderKey("OpenAI", "OPENAI_API_KEY"),
+        new ProviderKey("New API / One API（OpenAI 兼容）", "NEW_API_API_KEY", "NEW_API_BASE_URL", "http://127.0.0.1:3000/v1"),
+        new ProviderKey("小米 / MiMo", "XIAOMI_API_KEY"),
         new ProviderKey("Anthropic", "ANTHROPIC_API_KEY"),
         new ProviderKey("Gemini", "GEMINI_API_KEY"),
         new ProviderKey("DeepSeek", "DEEPSEEK_API_KEY"),
         new ProviderKey("OpenRouter", "OPENROUTER_API_KEY"),
-        new ProviderKey("Xiaomi / MiMo", "XIAOMI_API_KEY"),
-        new ProviderKey("New API / One API", "NEW_API_API_KEY", "NEW_API_BASE_URL", "http://127.0.0.1:3000/v1"),
         new ProviderKey("DashScope / Qwen", "DASHSCOPE_API_KEY"),
         new ProviderKey("Kimi / Moonshot", "KIMI_API_KEY"),
         new ProviderKey("MiniMax", "MINIMAX_API_KEY"),
