@@ -595,7 +595,7 @@ export default function App() {
               >
                 <PluginSlot name="header-right" />
                 <ThemeSwitcher dropUp />
-                {!sidebarCollapsed && <LanguageSwitcher />}
+                {!sidebarCollapsed && <LanguageSwitcher dropUp />}
               </div>
             </div>
 
