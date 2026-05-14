@@ -365,17 +365,31 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
     fitRef.current = fit;
     term.loadAddon(fit);
 
-    // Make wheel scrolling deterministic in the browser embed. Forwarding
-    // wheel gestures into the PTY depends on terminal modes inside the TUI;
-    // mapping them directly to xterm's scrollback keeps old messages reachable.
+    // The embedded TUI runs in the alternate screen and owns transcript
+    // history, so browser/xterm scrollback is not enough here. Send wheel
+    // gestures as SGR mouse reports, the same protocol a native terminal uses.
     term.attachCustomWheelEventHandler((ev) => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        return false;
+      }
+
       const delta = ev.deltaY;
       if (!delta) {
         return false;
       }
 
-      const step = Math.max(1, Math.round(Math.abs(delta) / 40));
-      term.scrollLines(delta > 0 ? step : -step);
+      const step = Math.max(1, Math.round(Math.abs(delta) / 50));
+      const button = delta > 0 ? 65 : 64;
+      const bounds = host.getBoundingClientRect();
+      const cellW = bounds.width / Math.max(1, term.cols);
+      const cellH = bounds.height / Math.max(1, term.rows);
+      const col = Math.max(1, Math.min(term.cols, Math.floor((ev.clientX - bounds.left) / cellW) + 1));
+      const row = Math.max(1, Math.min(term.rows, Math.floor((ev.clientY - bounds.top) / cellH) + 1));
+      const seq = `\x1b[<${button};${col};${row}M`;
+      for (let i = 0; i < step; i++) {
+        ws.send(seq);
+      }
       ev.preventDefault();
       ev.stopPropagation();
       return false;
@@ -553,28 +567,8 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
       term.write("\r\n\x1b[90m[session ended]\x1b[0m\r\n");
     };
 
-    // Keystrokes → PTY.
-    //
-    // IMPORTANT:
-    // The embedded web chat has occasionally surfaced stray letters/digits
-    // in the input line after a turn completes. The most likely culprit is
-    // browser-side terminal control traffic being forwarded back into the
-    // PTY as if it were user text. SGR mouse tracking is the highest-risk
-    // path here: xterm.js emits raw CSI reports (`\x1b[<...`) that look like
-    // ordinary bytes to the backend.
-    //
-    // For the browser embed we prefer input stability over terminal-style
-    // mouse reporting, so we drop SGR mouse reports entirely instead of
-    // forwarding them into Hermes. Keyboard input, paste, and resize still
-    // behave normally.
-    // eslint-disable-next-line no-control-regex -- intentional ESC byte in xterm SGR mouse report parser
-    const SGR_MOUSE_RE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/;
     const onDataDisposable = term.onData((data) => {
       if (ws.readyState !== WebSocket.OPEN) return;
-
-      if (SGR_MOUSE_RE.test(data)) {
-        return;
-      }
 
       ws.send(data);
     });
