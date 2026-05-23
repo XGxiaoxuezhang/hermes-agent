@@ -77,7 +77,7 @@ export const en: Translations = {
       keys: "Keys",
       logs: "Logs",
       models: "Models",
-      profiles: "profiles : multi agents",
+      profiles: "Profiles",
       plugins: "Plugins",
       sessions: "Sessions",
       skills: "Skills",
@@ -129,6 +129,7 @@ export const en: Translations = {
 
   sessions: {
     title: "Sessions",
+    overview: "Overview",
     searchPlaceholder: "Search message content...",
     noSessions: "No sessions yet",
     noMatch: "No sessions match your search",
@@ -291,7 +292,7 @@ export const en: Translations = {
       "Discover, install, enable, and update Hermes plugins (`hermes plugins` parity).",
     identifierLabel: "Git URL or owner/repo",
     inactive: "inactive",
-    installBtn: "Install from Git",
+    installBtn: "Install",
     installHeading: "Install from GitHub / Git URL",
     installHint: "Use owner/repo shorthand or a full https:// or git@ clone URL.",
     memoryProviderLabel: "Memory provider",
@@ -389,6 +390,8 @@ export const en: Translations = {
     description: "Manage API keys and secrets stored in",
     hideAdvanced: "Hide Advanced",
     showAdvanced: "Show Advanced",
+    showLess: "Show less",
+    showMore: "Show more",
     llmProviders: "LLM Providers",
     providersConfigured: "{configured} of {total} providers configured",
     getKey: "Get key",
@@ -414,7 +417,7 @@ export const en: Translations = {
     disconnect: "Disconnect",
     managedExternally: "Managed externally",
     copied: "Copied ✓",
-    cli: "CLI",
+    cli: "Copy",
     copyCliCommand: "Copy CLI command (for external / fallback)",
     connect: "Connect",
     sessionExpires: "Session expires in {time}",
@@ -629,6 +632,9 @@ export const en: Translations = {
     createTask: "Create task in this column",
     noTasks: "— no tasks —",
     unassigned: "unassigned",
+    needsAssignee: "Needs assignee",
+    needsAssigneeHint:
+      "Dependencies are satisfied, but the dispatcher skips this task until you assign a profile.",
     untitled: "(untitled)",
     loadingDetail: "Loading…",
     addComment: "Add a comment… (Enter to submit)",
@@ -710,6 +716,7 @@ export const en: Translations = {
     columnLabels: {
       triage: "Triage",
       todo: "Todo",
+      scheduled: "Scheduled",
       ready: "Ready",
       running: "In Progress",
       blocked: "Blocked",
@@ -719,7 +726,8 @@ export const en: Translations = {
     columnHelp: {
       triage: "Raw ideas — a specifier will flesh out the spec",
       todo: "Waiting on dependencies or unassigned",
-      ready: "Assigned and waiting for a dispatcher tick",
+      scheduled: "Waiting on a known time delay or scheduled follow-up",
+      ready: "Dependencies satisfied; assign a profile to dispatch",
       running: "Claimed by a worker — in-flight",
       blocked: "Worker asked for human input",
       done: "Completed",
@@ -731,6 +739,8 @@ export const en: Translations = {
       "Archive this task? It disappears from the default board view.",
     confirmBlocked:
       "Mark this task as blocked? The worker's claim is released.",
+    confirmScheduled:
+      "Move this task to Scheduled? Use this for known time delays rather than human blockers.",
     completionSummary:
       "Completion summary for {label}. This is stored as the task result.",
     completionSummaryRequired:
