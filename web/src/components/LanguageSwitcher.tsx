@@ -7,12 +7,9 @@ import { LOCALE_META } from "@/i18n";
 import type { Locale } from "@/i18n";
 
 /**
- * Language picker — shows the current language's flag + endonym, opens a
- * dropdown of all supported locales when clicked.  Persists choice to
- * localStorage via the I18n context.
- *
- * Replaces the older two-state EN↔ZH toggle now that we ship 16 locales
- * (en, zh, zh-hant, ja, de, es, fr, tr, uk, af, ko, it, ga, pt, ru, hu).
+ * Language picker — shows the current language name, opens a dropdown of all
+ * supported locales when clicked. Persists choice to localStorage via the
+ * I18n context.
  */
 export function LanguageSwitcher({ dropUp = false }: LanguageSwitcherProps) {
   const { locale, setLocale, t } = useI18n();
@@ -103,7 +100,6 @@ export function LanguageSwitcher({ dropUp = false }: LanguageSwitcherProps) {
                     (selected ? "font-semibold text-foreground" : "text-muted-foreground")
                   }
                 >
-                  <span className="text-base leading-none">{meta.flag}</span>
                   <span className="truncate">{meta.name}</span>
                   {selected && <span className="ml-auto text-xs">✓</span>}
                 </button>
@@ -125,15 +121,12 @@ export function LanguageSwitcher({ dropUp = false }: LanguageSwitcherProps) {
         aria-expanded={open}
         className="px-2 py-1 normal-case tracking-normal font-normal text-xs text-muted-foreground hover:text-foreground"
       >
-        <span className="inline-flex items-center gap-1.5">
-          <span className="text-base leading-none">{current.flag}</span>
-          <Typography
-            mondwest
-            className="hidden sm:inline tracking-wide uppercase text-[0.65rem]"
-          >
-            {locale === "en" ? "EN" : current.name}
-          </Typography>
-        </span>
+        <Typography
+          mondwest
+          className="hidden sm:inline tracking-wide uppercase text-[0.65rem]"
+        >
+          {locale === "en" ? "EN" : current.name}
+        </Typography>
       </Button>
 
       {menu}
