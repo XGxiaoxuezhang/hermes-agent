@@ -30,6 +30,20 @@ function scrollBoundsForDelta(s: ScrollBoxHandle, cur: number, delta: number) {
   return { max, viewport }
 }
 
+function scrollTopForDelta(s: ScrollBoxHandle, delta: number): number {
+  const pending = s.getPendingDelta()
+  const top = s.getScrollTop()
+
+  if (delta >= 0 || pending !== 0 || !s.isSticky()) {
+    return top + pending
+  }
+
+  const viewport = Math.max(0, s.getViewportHeight())
+  const freshHeight = Math.max(viewport, s.getFreshScrollHeight())
+
+  return Math.max(top, freshHeight - viewport)
+}
+
 export function scrollWithSelectionBy(delta: number, { scrollRef, selection }: ScrollWithSelectionOptions): void {
   const s = scrollRef.current
 
@@ -37,7 +51,7 @@ export function scrollWithSelectionBy(delta: number, { scrollRef, selection }: S
     return
   }
 
-  const cur = s.getScrollTop() + s.getPendingDelta()
+  const cur = scrollTopForDelta(s, delta)
   const { max, viewport } = scrollBoundsForDelta(s, cur, delta)
   const actual = Math.max(0, Math.min(max, cur + delta)) - cur
 

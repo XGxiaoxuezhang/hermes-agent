@@ -5401,22 +5401,22 @@ def _(rid, params: dict) -> dict:
             {
                 "text": "/compact",
                 "display": "/compact",
-                "meta": "Toggle compact display mode",
+                "meta": "切换紧凑显示模式",
             },
             {
                 "text": "/details",
                 "display": "/details",
-                "meta": "Control agent detail visibility",
+                "meta": "控制 Agent 详情显示",
             },
             {
                 "text": "/logs",
                 "display": "/logs",
-                "meta": "Show recent gateway log lines",
+                "meta": "查看最近的 gateway 日志",
             },
             {
                 "text": "/mouse",
                 "display": "/mouse",
-                "meta": "Set mouse tracking preset [on|off|toggle|wheel|buttons|all]",
+                "meta": "设置鼠标跟踪模式 [on|off|toggle|wheel|buttons|all]",
             },
         ]
         for extra in extras:

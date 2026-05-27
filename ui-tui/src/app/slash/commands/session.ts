@@ -40,7 +40,7 @@ const modelValueForConfigSet = (arg: string) => {
 export const sessionCommands: SlashCommand[] = [
   {
     aliases: ['bg', 'btw'],
-    help: 'launch a background prompt',
+    help: '启动后台提示任务',
     name: 'background',
     run: (arg, ctx) => {
       if (!arg) {
@@ -61,7 +61,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'change or show model',
+    help: '切换或查看模型',
     name: 'model',
     run: (arg, ctx) => {
       if (ctx.session.guardBusySessionSwitch('change models')) {
@@ -93,7 +93,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'browse and resume previous sessions',
+    help: '浏览并恢复历史会话',
     name: 'sessions',
     run: (arg, ctx) => {
       if (ctx.session.guardBusySessionSwitch('switch sessions')) {
@@ -106,7 +106,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'attach an image',
+    help: '附加图片',
     name: 'image',
     run: (arg, ctx) => {
       ctx.gateway.rpc<ImageAttachResponse>('image.attach', { path: arg, session_id: ctx.sid }).then(
@@ -122,7 +122,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'switch personality for this session',
+    help: '切换当前会话 personality',
     name: 'personality',
     run: (arg, ctx) => {
       if (!arg) {
@@ -143,7 +143,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'compress transcript',
+    help: '压缩对话上下文',
     name: 'compress',
     run: (arg, ctx) => {
       ctx.gateway
@@ -198,7 +198,7 @@ export const sessionCommands: SlashCommand[] = [
 
   {
     aliases: ['fork'],
-    help: 'branch the session',
+    help: '从当前会话创建分支',
     name: 'branch',
     run: (arg, ctx) => {
       const prevSid = ctx.sid
@@ -219,7 +219,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'voice mode: [on|off|tts|status]',
+    help: '语音模式：[on|off|tts|status]',
     name: 'voice',
     run: (arg, ctx) => {
       const normalized = (arg ?? '').trim().toLowerCase()
@@ -308,7 +308,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'switch theme skin (fires skin.changed)',
+    help: '切换主题皮肤（触发 skin.changed）',
     name: 'skin',
     run: (arg, ctx) => {
       if (!arg) {
@@ -324,7 +324,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'pick the busy indicator: kaomoji (default), emoji, unicode (braille), or ascii',
+    help: '选择忙碌指示器：kaomoji（默认）、emoji、unicode（盲文）或 ascii',
     name: 'indicator',
     usage: `/indicator [${INDICATOR_STYLES.join('|')}]`,
     run: (arg, ctx) => {
@@ -361,7 +361,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'toggle yolo mode (per-session approvals)',
+    help: '切换 yolo 模式（当前会话审批）',
     name: 'yolo',
     run: (_arg, ctx) => {
       ctx.gateway
@@ -371,7 +371,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'inspect or set reasoning effort (updates live agent)',
+    help: '查看或设置 reasoning effort（实时更新 Agent）',
     name: 'reasoning',
     run: (arg, ctx) => {
       if (!arg) {
@@ -413,7 +413,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'toggle fast mode [normal|fast|status|on|off|toggle]',
+    help: '切换快速模式 [normal|fast|status|on|off|toggle]',
     name: 'fast',
     run: (arg, ctx) => {
       const mode = arg.trim().toLowerCase()
@@ -457,7 +457,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'control busy enter mode [queue|steer|interrupt|status]',
+    help: '控制忙碌时回车行为 [queue|steer|interrupt|status]',
     name: 'busy',
     run: (arg, ctx) => {
       const mode = arg.trim().toLowerCase()
@@ -492,7 +492,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'cycle verbose tool-output mode (updates live agent)',
+    help: '切换详细工具输出模式（实时更新 Agent）',
     name: 'verbose',
     run: (arg, ctx) => {
       ctx.gateway
@@ -502,7 +502,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'session usage (live counts — worker sees zeros)',
+    help: '查看会话用量（实时计数）',
     name: 'usage',
     run: (_arg, ctx) => {
       ctx.gateway.rpc<SessionUsageResponse>('session.usage', { session_id: ctx.sid }).then(r => {

@@ -12,6 +12,7 @@ function makeScroll(overrides: Partial<Record<string, unknown>> = {}) {
     getScrollTop: vi.fn(() => 10),
     getViewportHeight: vi.fn(() => 20),
     getViewportTop: vi.fn(() => 0),
+    isSticky: vi.fn(() => false),
     scrollBy: vi.fn(),
     ...overrides
   }
@@ -95,5 +96,25 @@ describe('scrollWithSelectionBy', () => {
     scrollWithSelectionBy(10, { scrollRef: { current: s as never }, selection })
 
     expect(s.scrollBy).not.toHaveBeenCalled()
+  })
+
+  it('scrolls up from sticky bottom even when scrollTop has not caught up to fresh content', () => {
+    const s = makeScroll({
+      getFreshScrollHeight: vi.fn(() => 100),
+      getScrollTop: vi.fn(() => 0),
+      getViewportHeight: vi.fn(() => 20),
+      isSticky: vi.fn(() => true)
+    })
+
+    const selection = {
+      captureScrolledRows: vi.fn(),
+      getState: vi.fn(() => null),
+      shiftAnchor: vi.fn(),
+      shiftSelection: vi.fn()
+    }
+
+    scrollWithSelectionBy(-5, { scrollRef: { current: s as never }, selection })
+
+    expect(s.scrollBy).toHaveBeenCalledWith(-5)
   })
 })

@@ -49,6 +49,30 @@ describe('createSlashHandler', () => {
     vi.useRealTimers()
   })
 
+  it('turns on terminal-native copy mode without slash worker fallback', () => {
+    patchUiState({ mouseTracking: 'buttons' })
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/copy-mode on')).toBe(true)
+
+    expect(getUiState().mouseTracking).toBe('off')
+    expect(getUiState().nativeCopyMouseTracking).toBe('buttons')
+    expect(ctx.gateway.rpc).not.toHaveBeenCalled()
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+  })
+
+  it('restores mouse tracking when terminal-native copy mode is disabled', () => {
+    patchUiState({ mouseTracking: 'off', nativeCopyMouseTracking: 'wheel' })
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/copy-mode off')).toBe(true)
+
+    expect(getUiState().mouseTracking).toBe('wheel')
+    expect(getUiState().nativeCopyMouseTracking).toBe(null)
+    expect(ctx.gateway.rpc).not.toHaveBeenCalled()
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+  })
+
   it('routes /status to live session.status instead of slash worker', async () => {
     patchUiState({ sid: 'sid-abc' })
     const rpc = vi.fn(() => Promise.resolve({ output: 'Hermes TUI Status' }))
@@ -796,7 +820,8 @@ const buildTranscript = () => ({
 
 const buildVoice = () => ({
   setVoiceEnabled: vi.fn(),
-  setVoiceRecordKey: vi.fn()
+  setVoiceRecordKey: vi.fn(),
+  setVoiceTts: vi.fn()
 })
 
 interface Ctx {

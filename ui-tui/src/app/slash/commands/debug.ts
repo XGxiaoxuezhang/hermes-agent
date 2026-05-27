@@ -3,7 +3,7 @@ import type { SlashCommand } from '../types.js'
 
 export const debugCommands: SlashCommand[] = [
   {
-    help: 'write a V8 heap snapshot + memory diagnostics (see HERMES_HEAPDUMP_DIR)',
+    help: '写入 V8 heap snapshot 和内存诊断（见 HERMES_HEAPDUMP_DIR）',
     name: 'heapdump',
     run: (_arg, ctx) => {
       const { heapUsed, rss } = process.memoryUsage()
@@ -26,7 +26,7 @@ export const debugCommands: SlashCommand[] = [
   },
 
   {
-    help: 'print live V8 heap + rss numbers',
+    help: '打印实时 V8 heap 和 rss 数值',
     name: 'mem',
     run: (_arg, ctx) => {
       const { arrayBuffers, external, heapTotal, heapUsed, rss } = process.memoryUsage()

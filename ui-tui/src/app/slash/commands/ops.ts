@@ -63,7 +63,7 @@ interface SkillsReloadResponse {
 
 export const opsCommands: SlashCommand[] = [
   {
-    help: 'stop background processes',
+    help: '停止后台进程',
     name: 'stop',
     run: (_arg, ctx) => {
       ctx.gateway
@@ -81,7 +81,7 @@ export const opsCommands: SlashCommand[] = [
 
   {
     aliases: ['reload_mcp'],
-    help: 'reload MCP servers in the live session (warns about prompt cache invalidation)',
+    help: '重载当前会话的 MCP servers（会提示 prompt cache 失效风险）',
     name: 'reload-mcp',
     run: (arg, ctx) => {
       // Parse arg: `now` / `always` skip the confirmation gate.
@@ -121,7 +121,7 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    help: 're-read ~/.hermes/.env into the running gateway (CLI parity)',
+    help: '重新读取 ~/.hermes/.env 到运行中的 gateway',
     name: 'reload',
     run: (_arg, ctx) => {
       ctx.gateway
@@ -139,7 +139,7 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    help: 'manage browser CDP connection [connect|disconnect|status]',
+    help: '管理浏览器 CDP 连接 [connect|disconnect|status]',
     name: 'browser',
     run: (arg, ctx) => {
       const [rawAction = 'status', ...rest] = arg.trim().split(/\s+/).filter(Boolean)
@@ -192,7 +192,7 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    help: 'list, diff, or restore checkpoints',
+    help: '列出、对比或恢复 checkpoints',
     name: 'rollback',
     run: (arg, ctx) => {
       if (!ctx.sid) {
@@ -285,7 +285,7 @@ export const opsCommands: SlashCommand[] = [
 
   {
     aliases: ['tasks'],
-    help: 'open the spawn-tree dashboard (live audit + kill/pause controls)',
+    help: '打开 spawn-tree 面板（实时审计、终止、暂停）',
     name: 'agents',
     run: (arg, ctx) => {
       const sub = arg.trim().toLowerCase()
@@ -320,7 +320,7 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    help: 'replay a completed spawn tree · `/replay [N|last|list|load <path>]`',
+    help: '回放已完成的 spawn tree · `/replay [N|last|list|load <path>]`',
     name: 'replay',
     run: (arg, ctx) => {
       const history = getSpawnHistory()
@@ -406,7 +406,7 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    help: 'diff two completed spawn trees · `/replay-diff <baseline> <candidate>` (indexes from /replay list or history N)',
+    help: '对比两个已完成的 spawn tree · `/replay-diff <baseline> <candidate>`（索引来自 /replay list 或历史 N）',
     name: 'replay-diff',
     run: (arg, ctx) => {
       const parts = arg.trim().split(/\s+/).filter(Boolean)
@@ -442,7 +442,7 @@ export const opsCommands: SlashCommand[] = [
 
   {
     aliases: ['reload_skills'],
-    help: 're-scan installed skills in the live TUI gateway',
+    help: '在当前 TUI gateway 中重新扫描已安装 skills',
     name: 'reload-skills',
     run: (_arg, ctx) => {
       ctx.gateway
@@ -475,7 +475,7 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    help: 'browse, inspect, install skills',
+    help: '浏览、查看、安装 skills',
     name: 'skills',
     run: (arg, ctx, cmd) => {
       const text = arg.trim()
@@ -653,7 +653,7 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    help: 'enable or disable tools (client-side history reset on change)',
+    help: '启用或禁用 tools（变更后会重置客户端历史）',
     name: 'tools',
     run: (arg, ctx, cmd) => {
       const [subcommand, ...names] = arg.trim().split(/\s+/).filter(Boolean)

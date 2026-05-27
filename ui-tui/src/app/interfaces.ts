@@ -105,6 +105,7 @@ export interface UiState {
   info: null | SessionInfo
   inlineDiffs: boolean
   mouseTracking: MouseTrackingMode
+  nativeCopyMouseTracking: MouseTrackingMode | null
   pasteCollapseLines: number
   pasteCollapseChars: number
 
