@@ -650,7 +650,7 @@ class TurnController {
     const next = this.turnTools.filter(item => !sameToolTrailGroup(label, item))
 
     if (!this.activeTools.length) {
-      next.push('analyzing tool output…')
+      next.push('正在分析工具结果…')
     }
 
     this.turnTools = next.slice(-TRAIL_LIMIT)

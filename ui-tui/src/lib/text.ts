@@ -103,8 +103,26 @@ export const pasteTokenLabel = (text: string, lineCount: number) => {
     : `[[ ${preview} [${fmtK(lineCount)} lines] ]]`
 }
 
-const THINKING_STATUS_RE = new RegExp(`^(?:${VERBS.join('|')})\\.{0,3}$`, 'i')
-const THINKING_STATUS_CHUNK_RE = new RegExp(`[^A-Za-z\n]+\\s*(?:${VERBS.join('|')})\\.{0,3}\\s*`, 'giu')
+const LEGACY_THINKING_STATUS = [
+  'pondering',
+  'contemplating',
+  'musing',
+  'cogitating',
+  'ruminating',
+  'deliberating',
+  'mulling',
+  'reflecting',
+  'processing',
+  'reasoning',
+  'analyzing',
+  'computing',
+  'synthesizing',
+  'formulating',
+  'brainstorming'
+]
+const THINKING_STATUS_WORDS = [...VERBS, ...LEGACY_THINKING_STATUS]
+const THINKING_STATUS_RE = new RegExp(`^(?:${THINKING_STATUS_WORDS.join('|')})\\.{0,3}$`, 'iu')
+const THINKING_STATUS_CHUNK_RE = new RegExp(`[^\\p{L}\n]+\\s*(?:${THINKING_STATUS_WORDS.join('|')})\\.{0,3}\\s*`, 'giu')
 
 export const cleanThinkingText = (reasoning: string) =>
   reasoning
@@ -185,12 +203,37 @@ const countNewlines = (text: string, end: number) => {
 
 export const stripTrailingPasteNewlines = (text: string) => (/[^\n]/.test(text) ? text.replace(/\n+$/, '') : text)
 
+const TOOL_LABELS: Record<string, string> = {
+  browser: '浏览器',
+  clarify: '澄清',
+  computer_use: '电脑操作',
+  create_file: '创建文件',
+  delegate_task: '子任务',
+  delete_file: '删除文件',
+  execute_code: '执行代码',
+  image_generate: '生成图片',
+  list_files: '列出文件',
+  memory: '记忆',
+  patch: '修改补丁',
+  read_file: '读取文件',
+  run_command: '运行命令',
+  search_code: '搜索代码',
+  search_files: '搜索文件',
+  terminal: '终端',
+  todo: '待办',
+  web_extract: '网页提取',
+  web_search: '网页搜索',
+  write_file: '写入文件'
+}
+
 export const toolTrailLabel = (name: string) =>
-  name
+  TOOL_LABELS[name] ??
+  (name
     .split('_')
     .filter(Boolean)
     .map(p => p[0]!.toUpperCase() + p.slice(1))
-    .join(' ') || name
+    .join(' ') ||
+    name)
 
 export const formatToolCall = (name: string, context = '') => {
   const label = toolTrailLabel(name)
@@ -226,7 +269,7 @@ export const buildVerboseToolTrailLine = (
   argsText?: string,
   resultText?: string
 ) => {
-  const detail = [verboseToolBlock('Args', argsText), verboseToolBlock(error ? 'Error' : 'Result', resultText)]
+  const detail = [verboseToolBlock('参数', argsText), verboseToolBlock(error ? '错误' : '结果', resultText)]
     .filter(Boolean)
     .join('\n')
   const took = duration !== undefined ? ` (${duration.toFixed(1)}s)` : ''
@@ -264,7 +307,8 @@ export const splitToolDuration = (call: string) => {
   return match ? { label: match[1]!, duration: match[2]! } : { label: call, duration: '' }
 }
 
-export const isTransientTrailLine = (line: string) => line.startsWith('drafting ') || line === 'analyzing tool output…'
+export const isTransientTrailLine = (line: string) =>
+  line.startsWith('drafting ') || line === 'analyzing tool output…' || line === '正在分析工具结果…'
 
 export const sameToolTrailGroup = (label: string, entry: string) =>
   entry === `${label} ✓` ||

@@ -32,9 +32,9 @@ describe('buildToolTrailLine', () => {
   it('puts completion duration inline before the result marker', () => {
     const line = buildToolTrailLine('read_file', 'x', false, '', 0.94)
 
-    expect(line).toBe('Read File("x") (0.9s) ✓')
-    expect(parseToolTrailResultLine(line)).toEqual({ call: 'Read File("x") (0.9s)', detail: '', mark: '✓' })
-    expect(splitToolDuration('Read File("x") (0.9s)')).toEqual({ label: 'Read File("x")', duration: ' (0.9s)' })
+    expect(line).toBe('读取文件("x") (0.9s) ✓')
+    expect(parseToolTrailResultLine(line)).toEqual({ call: '读取文件("x") (0.9s)', detail: '', mark: '✓' })
+    expect(splitToolDuration('读取文件("x") (0.9s)')).toEqual({ label: '读取文件("x")', duration: ' (0.9s)' })
   })
 })
 
@@ -49,11 +49,11 @@ describe('buildVerboseToolTrailLine', () => {
       'first line\nsecond :: line'
     )
 
-    expect(line).toContain('Args:\n{')
-    expect(line).toContain('Result:\nfirst line\nsecond :: line')
+    expect(line).toContain('参数:\n{')
+    expect(line).toContain('结果:\nfirst line\nsecond :: line')
     expect(parseToolTrailResultLine(line)).toEqual({
-      call: 'Terminal("npm test") (1.3s)',
-      detail: 'Args:\n{\n  "cmd": "npm test"\n}\nResult:\nfirst line\nsecond :: line',
+      call: '终端("npm test") (1.3s)',
+      detail: '参数:\n{\n  "cmd": "npm test"\n}\n结果:\nfirst line\nsecond :: line',
       mark: '✓'
     })
   })
@@ -61,11 +61,11 @@ describe('buildVerboseToolTrailLine', () => {
   it('labels verbose failures as errors', () => {
     const line = buildVerboseToolTrailLine('terminal', 'npm test', true, 0.5, undefined, 'command failed')
 
-    expect(line).toContain('Error:\ncommand failed')
-    expect(line).not.toContain('Result:\ncommand failed')
+    expect(line).toContain('错误:\ncommand failed')
+    expect(line).not.toContain('结果:\ncommand failed')
     expect(parseToolTrailResultLine(line)).toEqual({
-      call: 'Terminal("npm test") (0.5s)',
-      detail: 'Error:\ncommand failed',
+      call: '终端("npm test") (0.5s)',
+      detail: '错误:\ncommand failed',
       mark: '✗'
     })
   })

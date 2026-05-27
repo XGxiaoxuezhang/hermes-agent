@@ -89,6 +89,7 @@ export const sessionCommands: SlashCommand[] = [
             }))
           })
         )
+        .catch(ctx.guardedErr)
     }
   },
 

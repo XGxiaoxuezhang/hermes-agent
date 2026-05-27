@@ -1103,6 +1103,35 @@ def _persist_model_switch(result) -> None:
     save_config(cfg)
 
 
+def _replace_session_agent_after_model_switch(sid: str, session: dict) -> None:
+    """Rebuild the TUI agent after /model while preserving transcript history."""
+
+    old_agent = session.get("agent")
+    tokens = _set_session_context(session["session_key"])
+    try:
+        new_agent = _make_agent(sid, session["session_key"], session_id=session["session_key"])
+    finally:
+        _clear_session_context(tokens)
+
+    try:
+        if old_agent is not None and hasattr(old_agent, "close"):
+            old_agent.close()
+    except Exception:
+        logger.debug("old agent close failed after model switch", exc_info=True)
+
+    session["agent"] = new_agent
+    session["agent_error"] = None
+    session["attached_images"] = []
+    session["edit_snapshots"] = {}
+    session["image_counter"] = 0
+    session["show_reasoning"] = _load_show_reasoning()
+    session["tool_progress_mode"] = _load_tool_progress_mode()
+    session["tool_started_at"] = {}
+    _wire_callbacks(sid)
+    _restart_slash_worker(session)
+    _emit("session.info", sid, _session_info(new_agent))
+
+
 def _apply_model_switch(sid: str, session: dict, raw_input: str) -> dict:
     from hermes_cli.model_switch import parse_model_flags, switch_model
     from hermes_cli.runtime_provider import resolve_runtime_provider
@@ -1160,17 +1189,6 @@ def _apply_model_switch(sid: str, session: dict, raw_input: str) -> dict:
     if not result.success:
         raise ValueError(result.error_message or "model switch failed")
 
-    if agent:
-        agent.switch_model(
-            new_model=result.new_model,
-            new_provider=result.target_provider,
-            api_key=result.api_key,
-            base_url=result.base_url,
-            api_mode=result.api_mode,
-        )
-        _restart_slash_worker(session)
-        _emit("session.info", sid, _session_info(agent))
-
     os.environ["HERMES_MODEL"] = result.new_model
     os.environ["HERMES_INFERENCE_MODEL"] = result.new_model
     # Keep the process-level provider env vars in sync with the user's
@@ -1188,6 +1206,8 @@ def _apply_model_switch(sid: str, session: dict, raw_input: str) -> dict:
         os.environ["HERMES_TUI_PROVIDER"] = result.target_provider
     if persist_global:
         _persist_model_switch(result)
+    if agent:
+        _replace_session_agent_after_model_switch(sid, session)
     return {"value": result.new_model, "warning": result.warning_message or ""}
 
 

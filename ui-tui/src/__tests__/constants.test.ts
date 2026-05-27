@@ -29,12 +29,12 @@ describe('constants', () => {
   it('documents Ctrl/Cmd+L as non-destructive redraw', () => {
     const hotkey = HOTKEYS.find(([k]) => k.endsWith('+L'))
     expect(hotkey).toBeDefined()
-    expect(hotkey?.[1]).toBe('redraw / repaint')
+    expect(hotkey?.[1]).toBe('重绘界面')
   })
 
   it('TOOL_VERBS maps known tools (verb-only, no emoji)', () => {
-    expect(TOOL_VERBS.terminal).toBe('terminal')
-    expect(TOOL_VERBS.read_file).toBe('reading')
+    expect(TOOL_VERBS.terminal).toBe('终端')
+    expect(TOOL_VERBS.read_file).toBe('读取')
   })
 
   it('INTERPOLATION_RE matches {!cmd}', () => {

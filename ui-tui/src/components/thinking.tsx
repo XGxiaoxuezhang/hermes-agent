@@ -41,6 +41,16 @@ import type {
 const THINK: BrailleSpinnerName[] = ['helix', 'breathe', 'orbit', 'dna', 'waverows', 'snake', 'pulse']
 const TOOL: BrailleSpinnerName[] = ['cascade', 'scan', 'diagswipe', 'fillsweep', 'rain', 'columns', 'sparkle']
 
+const STATUS_LABEL: Record<string, string> = {
+  completed: '已完成',
+  error: '错误',
+  failed: '失败',
+  interrupted: '已中断',
+  queued: '排队中',
+  running: '运行中',
+  timeout: '超时'
+}
+
 const fmtElapsed = (ms: number) => {
   const sec = Math.max(0, ms) / 1000
 
@@ -340,7 +350,7 @@ function SubagentAccordion({
 
   // Suffix packs branch rollup: status · elapsed · per-branch tool/agent/token/cost.
   // Emphasises the numbers the user can't easily eyeball from a flat list.
-  const statusLabel = item.status === 'queued' ? 'queued' : item.status === 'running' ? 'running' : String(item.status)
+  const statusLabel = STATUS_LABEL[item.status] ?? String(item.status)
 
   const rollupBits: string[] = [statusLabel]
 
@@ -352,13 +362,13 @@ function SubagentAccordion({
   const subtreeTools = aggregate.totalTools - localTools
 
   if (localTools > 0) {
-    rollupBits.push(`${localTools} tool${localTools === 1 ? '' : 's'}`)
+    rollupBits.push(`${localTools} 个工具`)
   }
 
   const localTokens = (item.inputTokens ?? 0) + (item.outputTokens ?? 0)
 
   if (localTokens > 0) {
-    rollupBits.push(`${fmtTokens(localTokens)} tok`)
+    rollupBits.push(`${fmtTokens(localTokens)} token`)
   }
 
   const localCost = item.costUsd ?? 0
@@ -377,13 +387,13 @@ function SubagentAccordion({
     rollupBits.push(`${aggregate.descendantCount}↓`)
 
     if (subtreeTools > 0) {
-      rollupBits.push(`+${subtreeTools}t sub`)
+      rollupBits.push(`+${subtreeTools} 工具`)
     }
 
     const subCost = aggregate.costUsd - localCost
 
     if (subCost >= 0.01) {
-      rollupBits.push(`+${fmtCost(subCost)} sub`)
+      rollupBits.push(`+${fmtCost(subCost)} 子任务`)
     }
 
     if (aggregate.activeCount > 0 && item.status !== 'running') {
@@ -684,6 +694,7 @@ interface Group {
   details: DetailRow[]
   key: string
   label: string
+  name?: string
 }
 
 export const ToolTrail = memo(function ToolTrail({
@@ -821,25 +832,27 @@ export const ToolTrail = memo(function ToolTrail({
       groups.push({
         color: t.color.text,
         content: label,
-        details: [{ color: t.color.muted, content: 'drafting...', dimColor: true, key: `tr-${i}-d` }],
+        details: [{ color: t.color.muted, content: '准备中...', dimColor: true, key: `tr-${i}-d` }],
         key: `tr-${i}`,
-        label
+        label,
+        name: line.slice(9).replace(/…$/, '').trim()
       })
 
       continue
     }
 
-    if (line === 'analyzing tool output…') {
+    if (line === 'analyzing tool output…' || line === '正在分析工具结果…') {
+      const content = '正在分析工具结果…'
       pushDetail({
         color: t.color.muted,
         dimColor: true,
         key: `tr-${i}`,
         content: groups.length ? (
           <>
-            <Spinner color={t.color.accent} variant="think" /> {line}
+            <Spinner color={t.color.accent} variant="think" /> {content}
           </>
         ) : (
-          line
+          content
         )
       })
 
@@ -856,11 +869,12 @@ export const ToolTrail = memo(function ToolTrail({
       color: t.color.text,
       key: tool.id,
       label,
+      name: tool.name,
       details: tool.verboseArgs
         ? [
             {
               color: t.color.muted,
-              content: `Args:\n${boundedLiveRenderText(tool.verboseArgs)}`,
+              content: `参数:\n${boundedLiveRenderText(tool.verboseArgs)}`,
               dimColor: true,
               key: `${tool.id}-args`
             }
@@ -894,12 +908,14 @@ export const ToolTrail = memo(function ToolTrail({
 
   const toolTokenCount = toolTokens ?? 0
   const totalTokenCount = tokenCount + toolTokenCount
-  const thinkingTokensLabel = tokenCount > 0 ? `~${fmtK(tokenCount)} tokens` : null
+  const thinkingTokensLabel = tokenCount > 0 ? `~${fmtK(tokenCount)} token` : null
 
-  const toolTokensLabel = toolTokens !== undefined && toolTokens > 0 ? `~${fmtK(toolTokens)} tokens` : undefined
+  const toolTokensLabel = toolTokens !== undefined && toolTokens > 0 ? `~${fmtK(toolTokens)} token` : undefined
 
   const totalTokensLabel = tokenCount > 0 && toolTokenCount > 0 ? `~${fmtK(totalTokenCount)} total` : null
-  const delegateGroups = groups.filter(g => g.label.startsWith('Delegate Task'))
+  const delegateGroups = groups.filter(
+    g => g.name === 'delegate_task' || g.label.startsWith('Delegate Task') || g.label.startsWith('子任务')
+  )
   const inlineDelegateKey = hasSubagents && delegateGroups.length === 1 ? delegateGroups[0]!.key : null
 
   const toolLabel = (group: Group) => {

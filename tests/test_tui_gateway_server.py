@@ -1782,6 +1782,7 @@ def test_config_set_model_global_persists(monkeypatch):
 
     server._sessions["sid"] = _session(agent=_Agent())
     monkeypatch.setattr("hermes_cli.model_switch.switch_model", _switch_model)
+    monkeypatch.setattr(server, "_replace_session_agent_after_model_switch", lambda sid, session: None)
     monkeypatch.setattr(server, "_restart_slash_worker", lambda session: None)
     monkeypatch.setattr(server, "_emit", lambda *args, **kwargs: None)
     monkeypatch.setattr("hermes_cli.config.save_config", lambda cfg: saved.update(cfg))
@@ -1840,6 +1841,7 @@ def test_config_set_model_syncs_inference_provider_env(monkeypatch):
     monkeypatch.setattr(
         "hermes_cli.model_switch.switch_model", lambda **_kwargs: result
     )
+    monkeypatch.setattr(server, "_replace_session_agent_after_model_switch", lambda sid, session: None)
     monkeypatch.setattr(server, "_restart_slash_worker", lambda session: None)
     monkeypatch.setattr(server, "_emit", lambda *args, **kwargs: None)
 
@@ -1891,6 +1893,7 @@ def test_config_set_model_syncs_tui_provider_unconditionally(monkeypatch):
     monkeypatch.setattr(
         "hermes_cli.model_switch.switch_model", lambda **_kwargs: result
     )
+    monkeypatch.setattr(server, "_replace_session_agent_after_model_switch", lambda sid, session: None)
     monkeypatch.setattr(server, "_restart_slash_worker", lambda session: None)
     monkeypatch.setattr(server, "_emit", lambda *args, **kwargs: None)
 
@@ -1942,6 +1945,7 @@ def test_config_set_model_syncs_tui_provider_env(monkeypatch):
         )
 
     monkeypatch.setattr("hermes_cli.model_switch.switch_model", fake_switch_model)
+    monkeypatch.setattr(server, "_replace_session_agent_after_model_switch", lambda sid, session: None)
 
     try:
         resp = server.handle_request(
@@ -1962,6 +1966,60 @@ def test_config_set_model_syncs_tui_provider_env(monkeypatch):
         assert os.environ["HERMES_INFERENCE_MODEL"] == "anthropic/claude-sonnet-4.6"
     finally:
         server._sessions.clear()
+
+
+def test_config_set_model_rebuilds_idle_session_agent_and_preserves_history(monkeypatch):
+    class OldAgent:
+        model = "old/model"
+        provider = "openrouter"
+        base_url = ""
+        api_key = "sk-old"
+
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    new_agent = types.SimpleNamespace(model="new/model", provider="anthropic")
+    old_agent = OldAgent()
+    history = [{"role": "user", "content": "continue the task"}]
+    result = types.SimpleNamespace(
+        success=True,
+        new_model="new/model",
+        target_provider="anthropic",
+        api_key="sk-new",
+        base_url="https://api.anthropic.com",
+        api_mode="anthropic_messages",
+        warning_message="",
+    )
+
+    server._sessions["sid"] = _session(agent=old_agent, history=list(history))
+    monkeypatch.setattr("hermes_cli.model_switch.switch_model", lambda **_kwargs: result)
+    monkeypatch.setattr(server, "_make_agent", lambda sid, key, session_id=None: new_agent)
+    monkeypatch.setattr(server, "_restart_slash_worker", lambda session: None)
+    monkeypatch.setattr(server, "_wire_callbacks", lambda sid: None)
+    monkeypatch.setattr(server, "_emit", lambda *args, **kwargs: None)
+
+    try:
+        resp = server.handle_request(
+            {
+                "id": "1",
+                "method": "config.set",
+                "params": {
+                    "session_id": "sid",
+                    "key": "model",
+                    "value": "new/model --provider anthropic",
+                },
+            }
+        )
+
+        assert resp["result"]["value"] == "new/model"
+        assert server._sessions["sid"]["agent"] is new_agent
+        assert old_agent.closed is True
+        assert server._sessions["sid"]["history"] == history
+    finally:
+        server._sessions.pop("sid", None)
 
 
 def test_config_set_personality_rejects_unknown_name(monkeypatch):

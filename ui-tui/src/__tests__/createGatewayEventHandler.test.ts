@@ -150,7 +150,7 @@ describe('createGatewayEventHandler', () => {
       expect(getUiState().status).toBe('✓ goal complete')
 
       vi.advanceTimersByTime(6001)
-      expect(getUiState().status).toBe('ready')
+      expect(getUiState().status).toBe('就绪')
     } finally {
       vi.useRealTimers()
     }
@@ -265,8 +265,8 @@ describe('createGatewayEventHandler', () => {
     const toolTrails = appended.filter(msg => msg.kind === 'trail' && msg.tools?.length)
     expect(toolTrails).toHaveLength(1)
     expect(toolTrails[0]?.tools).toHaveLength(2)
-    expect(toolTrails[0]?.tools?.[0]).toContain('Search Files')
-    expect(toolTrails[0]?.tools?.[1]).toContain('Read File')
+    expect(toolTrails[0]?.tools?.[0]).toContain('搜索文件')
+    expect(toolTrails[0]?.tools?.[1]).toContain('读取文件')
   })
 
   it('keeps tool tokens across handler recreation mid-turn', () => {
@@ -517,7 +517,7 @@ describe('createGatewayEventHandler', () => {
         kind: 'diff',
         role: 'assistant',
         text: block,
-        tools: [expect.stringMatching(/^Patch\("foo\.ts"\)(?: \([^)]+\))? ✓$/)]
+        tools: [expect.stringMatching(/^修改补丁\("foo\.ts"\)(?: \([^)]+\))? ✓$/)]
       }
     ])
 
@@ -526,7 +526,7 @@ describe('createGatewayEventHandler', () => {
     expect(appended).toHaveLength(4)
     expect(appended[0]?.text).toBe('Editing the file')
     expect(appended[1]).toMatchObject({ kind: 'diff', text: block })
-    expect(appended[1]?.tools?.[0]).toContain('Patch')
+    expect(appended[1]?.tools?.[0]).toContain('修改补丁')
     expect(appended[3]?.text).toBe('patch applied')
     expect(appended[3]?.text).not.toContain('```diff')
   })
@@ -546,8 +546,8 @@ describe('createGatewayEventHandler', () => {
     } as any)
 
     expect(turnController.segmentMessages[0]).toMatchObject({ kind: 'diff' })
-    expect(turnController.segmentMessages[0]?.tools?.[0]).toContain('Args:\n{ "path": "foo.ts" }')
-    expect(turnController.segmentMessages[0]?.tools?.[0]).toContain('Result:\npatched result')
+    expect(turnController.segmentMessages[0]?.tools?.[0]).toContain('参数:\n{ "path": "foo.ts" }')
+    expect(turnController.segmentMessages[0]?.tools?.[0]).toContain('结果:\npatched result')
   })
 
   it('keeps full final responses from duplicating flushed pre-diff narration', () => {
@@ -563,7 +563,7 @@ describe('createGatewayEventHandler', () => {
     onEvent({ payload: { text: 'Before edit. After edit.' }, type: 'message.complete' } as any)
 
     expect(appended.map(msg => msg.text.trim()).filter(Boolean)).toEqual(['Before edit.', block, 'After edit.'])
-    expect(appended[1]?.tools?.[0]).toContain('Patch')
+    expect(appended[1]?.tools?.[0]).toContain('修改补丁')
   })
 
   it('drops the diff segment when the final assistant text narrates the same diff', () => {
@@ -653,7 +653,7 @@ describe('createGatewayEventHandler', () => {
     expect(appended).toHaveLength(1)
     expect(appended[0]).toMatchObject({
       kind: 'panel',
-      panelData: { title: 'Setup Required' },
+      panelData: { title: '需要设置' },
       role: 'system'
     })
   })
