@@ -13,6 +13,23 @@ $pidFile = Join-Path $stateDir "dashboard.pid"
 $logFile = Join-Path $stateDir "dashboard.log"
 $errorLogFile = Join-Path $stateDir "dashboard-error.log"
 
+function Get-ProcessDescription {
+    param([int]$ProcessId)
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+    if (-not $proc) {
+        return @{ LooksLikeHermes = $false; CommandLine = ""; ExecutablePath = "" }
+    }
+    $cmd = [string]$proc.CommandLine
+    $exe = [string]$proc.ExecutablePath
+    $repoPrefix = (Resolve-Path $repo).Path.ToLowerInvariant()
+    $haystack = "$exe $cmd".ToLowerInvariant()
+    return @{
+        LooksLikeHermes = ($haystack.Contains("hermes_cli.main") -or $haystack.Contains($repoPrefix))
+        CommandLine = $cmd
+        ExecutablePath = $exe
+    }
+}
+
 if (-not (Test-Path $python)) {
     throw "Missing virtual environment: $python. Run scripts\windows\install-local.ps1 first."
 }
@@ -27,7 +44,12 @@ try {
     $existing = $null
 }
 if ($existing -and $existing.OwningProcess) {
-    Write-Host "Hermes Dashboard already appears to be listening on port $Port (PID $($existing.OwningProcess))."
+    $desc = Get-ProcessDescription ([int]$existing.OwningProcess)
+    if (-not $desc.LooksLikeHermes) {
+        throw "Port $Port is already used by PID $($existing.OwningProcess), but it does not look like this Hermes install. Stop that process or use another -Port."
+    }
+    Set-Content -Path $pidFile -Value $existing.OwningProcess -Encoding ASCII
+    Write-Host "Hermes Dashboard is already listening on port $Port (PID $($existing.OwningProcess))."
     Write-Host "Open http://127.0.0.1:$Port"
     exit 0
 }

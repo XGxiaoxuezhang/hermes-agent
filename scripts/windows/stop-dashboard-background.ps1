@@ -6,6 +6,20 @@ $ErrorActionPreference = "Stop"
 
 $stateDir = Join-Path $env:LOCALAPPDATA "HermesAgent"
 $pidFile = Join-Path $stateDir "dashboard.pid"
+$repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+
+function Test-IsHermesProcess {
+    param([int]$ProcessId)
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+    if (-not $proc) {
+        return $false
+    }
+    $cmd = [string]$proc.CommandLine
+    $exe = [string]$proc.ExecutablePath
+    $repoPrefix = $repo.Path.ToLowerInvariant()
+    $haystack = "$exe $cmd".ToLowerInvariant()
+    return ($haystack.Contains("hermes_cli.main") -or $haystack.Contains($repoPrefix))
+}
 
 $pids = @()
 if (Test-Path $pidFile) {
@@ -35,6 +49,10 @@ if (-not $pids) {
 }
 
 foreach ($pidValue in $pids) {
+    if (-not (Test-IsHermesProcess $pidValue)) {
+        Write-Host "Skipping PID $pidValue because it does not look like this Hermes install."
+        continue
+    }
     Write-Host "Stopping Hermes Dashboard process $pidValue"
     Stop-Process -Id $pidValue -Force -ErrorAction SilentlyContinue
 }
