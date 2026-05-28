@@ -205,6 +205,8 @@ class _SlashWorker:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
             cwd=os.getcwd(),
             env=os.environ.copy(),
@@ -2336,7 +2338,9 @@ def _(rid, params: dict) -> dict:
         fetch_limit = max(limit * 2, 200)
         rows = [
             s
-            for s in db.list_sessions_rich(source=None, limit=fetch_limit)
+            for s in db.list_sessions_rich(
+                source=None, limit=fetch_limit, order_by_last_active=True
+            )
             if (s.get("source") or "").strip().lower() not in deny
         ][:limit]
         return _ok(
@@ -2383,7 +2387,9 @@ def _(rid, params: dict) -> dict:
         # users (lots of recent ``tool`` rows) don't get a false
         # "no eligible session" answer.  ``session.list`` uses a
         # similar over-fetch strategy.
-        rows = db.list_sessions_rich(source=None, limit=200)
+        rows = db.list_sessions_rich(
+            source=None, limit=200, order_by_last_active=True
+        )
         for row in rows:
             src = (row.get("source") or "").strip().lower()
             if src in deny:
@@ -2663,15 +2669,27 @@ def _(rid, params: dict) -> dict:
         )
     removed = 0
     with session["history_lock"]:
-        history = session.get("history", [])
-        while history and history[-1].get("role") in {"assistant", "tool"}:
-            history.pop()
-            removed += 1
-        if history and history[-1].get("role") == "user":
-            history.pop()
-            removed += 1
-        if removed:
+        history = [dict(msg) for msg in session.get("history", [])]
+    next_history = list(history)
+    while next_history and next_history[-1].get("role") in {"assistant", "tool"}:
+        next_history.pop()
+        removed += 1
+    if next_history and next_history[-1].get("role") == "user":
+        next_history.pop()
+        removed += 1
+    if removed:
+        db = _get_db()
+        if db is not None and session.get("session_key"):
+            try:
+                db.replace_messages(session["session_key"], next_history)
+            except Exception as exc:
+                return _err(rid, 5008, f"undo persisted history update failed: {exc}")
+        with session["history_lock"]:
+            session["history"] = next_history
             session["history_version"] = int(session.get("history_version", 0)) + 1
+            agent = session.get("agent")
+            if agent is not None:
+                setattr(agent, "_last_flushed_db_idx", len(next_history))
     return _ok(rid, {"removed": removed})
 
 

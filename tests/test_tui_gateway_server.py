@@ -2757,6 +2757,48 @@ def test_session_undo_allowed_when_idle():
         server._sessions.pop("sid", None)
 
 
+def test_session_undo_persists_rewritten_history(monkeypatch):
+    """Undo must rewrite SQLite too, otherwise resume brings deleted turns back."""
+
+    replaced = []
+
+    class _DB:
+        def replace_messages(self, session_id, messages):
+            replaced.append((session_id, list(messages)))
+
+    agent = types.SimpleNamespace(_last_flushed_db_idx=999)
+    server._sessions["sid"] = _session(
+        running=False,
+        session_key="session-key",
+        agent=agent,
+        history=[
+            {"role": "user", "content": "keep"},
+            {"role": "assistant", "content": "kept"},
+            {"role": "user", "content": "remove"},
+            {"role": "assistant", "content": "removed"},
+        ],
+    )
+    monkeypatch.setattr(server, "_get_db", lambda: _DB())
+    try:
+        resp = server.handle_request(
+            {"id": "1", "method": "session.undo", "params": {"session_id": "sid"}}
+        )
+        assert resp.get("result"), f"got error: {resp.get('error')}"
+        assert resp["result"]["removed"] == 2
+        assert replaced == [
+            (
+                "session-key",
+                [
+                    {"role": "user", "content": "keep"},
+                    {"role": "assistant", "content": "kept"},
+                ],
+            )
+        ]
+        assert agent._last_flushed_db_idx == 2
+    finally:
+        server._sessions.pop("sid", None)
+
+
 def test_session_compress_rejects_while_running(monkeypatch):
     server._sessions["sid"] = _session(running=True)
     try:
@@ -3908,7 +3950,10 @@ def test_session_most_recent_returns_first_non_denied(monkeypatch):
     """Drops `tool` rows like session.list does, returns the first hit."""
 
     class _DB:
-        def list_sessions_rich(self, *, source=None, limit=200):
+        def list_sessions_rich(
+            self, *, source=None, limit=200, order_by_last_active=False
+        ):
+            assert order_by_last_active is True
             return [
                 {"id": "tool-1", "source": "tool", "title": "noise", "started_at": 100},
                 {"id": "tui-1", "source": "tui", "title": "real", "started_at": 99},
@@ -3927,7 +3972,9 @@ def test_session_most_recent_returns_first_non_denied(monkeypatch):
 
 def test_session_most_recent_returns_null_when_only_tool_rows(monkeypatch):
     class _DB:
-        def list_sessions_rich(self, *, source=None, limit=200):
+        def list_sessions_rich(
+            self, *, source=None, limit=200, order_by_last_active=False
+        ):
             return [{"id": "tool-1", "source": "tool", "started_at": 1}]
 
     monkeypatch.setattr(server, "_get_db", lambda: _DB())
@@ -3945,7 +3992,9 @@ def test_session_most_recent_folds_db_exception_into_null_result(monkeypatch):
     'no answer' (Copilot review on #17130)."""
 
     class _BrokenDB:
-        def list_sessions_rich(self, *, source=None, limit=200):
+        def list_sessions_rich(
+            self, *, source=None, limit=200, order_by_last_active=False
+        ):
             raise RuntimeError("db locked")
 
     monkeypatch.setattr(server, "_get_db", lambda: _BrokenDB())
