@@ -70,6 +70,36 @@ const TERMINAL_THEME = {
   selectionBackground: "#f0e6d244",
 };
 
+const LAST_CHAT_SESSION_KEY = "hermes.dashboard.chat.lastSessionId";
+
+function readLastChatSessionId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.localStorage.getItem(LAST_CHAT_SESSION_KEY);
+    return value && /^[A-Za-z0-9_.:-]+$/.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastChatSessionId(sessionId: string): void {
+  if (typeof window === "undefined" || !sessionId) return;
+  try {
+    window.localStorage.setItem(LAST_CHAT_SESSION_KEY, sessionId);
+  } catch {
+    /* localStorage can be disabled; chat still works without auto-resume. */
+  }
+}
+
+function clearLastChatSessionId(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(LAST_CHAT_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * CSS width for xterm font tiers.
  *
@@ -148,7 +178,11 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
   // Sessions page relies on `/chat?resume=<id>` changing at runtime, so we must
   // treat the current resume target as part of the PTY identity and rebuild the
   // terminal session when it changes.
-  const resumeParam = searchParams.get("resume");
+  const urlResumeParam = searchParams.get("resume");
+  const [storedResumeParam, setStoredResumeParam] = useState<string | null>(() =>
+    urlResumeParam ?? readLastChatSessionId(),
+  );
+  const resumeParam = urlResumeParam ?? storedResumeParam;
   const channel = useMemo(() => generateChannelId(), [resumeParam]);
 
   useEffect(() => {
@@ -159,7 +193,20 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
     api
       .getSessionLatestDescendant(resumeParam)
       .then((res) => {
-        if (cancelled || !res.session_id || res.session_id === resumeParam) {
+        if (cancelled) {
+          return;
+        }
+        if (!res.session_id) {
+          clearLastChatSessionId();
+          if (!urlResumeParam) {
+            setStoredResumeParam(null);
+          }
+          return;
+        }
+
+        writeLastChatSessionId(res.session_id);
+        setStoredResumeParam(res.session_id);
+        if (res.session_id === resumeParam && urlResumeParam) {
           return;
         }
 
@@ -169,12 +216,49 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
       })
       .catch(() => {
         // Best-effort: old servers or missing sessions should not block chat.
+        if (!cancelled && !urlResumeParam) {
+          clearLastChatSessionId();
+          setStoredResumeParam(null);
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [resumeParam, searchParams, setSearchParams]);
+  }, [resumeParam, searchParams, setSearchParams, urlResumeParam]);
+
+  useEffect(() => {
+    const token = window.__HERMES_SESSION_TOKEN__;
+    if (!token || !channel) return;
+
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const qs = new URLSearchParams({ token, channel });
+    const ws = new WebSocket(
+      `${proto}//${window.location.host}/api/events?${qs.toString()}`,
+    );
+
+    ws.addEventListener("message", (ev) => {
+      try {
+        const frame = JSON.parse(ev.data) as {
+          method?: string;
+          params?: { type?: string; session_id?: string };
+        };
+        const sessionId = frame.params?.session_id;
+        if (
+          frame.method !== "event" ||
+          frame.params?.type !== "session.info" ||
+          !sessionId
+        ) {
+          return;
+        }
+        writeLastChatSessionId(sessionId);
+      } catch {
+        /* Ignore non-JSON frames. */
+      }
+    });
+
+    return () => ws.close();
+  }, [channel]);
 
   useEffect(() => {
     if (!modelPanelOpen) return;
