@@ -349,6 +349,44 @@ def test_start_noops_when_gateway_already_running(monkeypatch, capsys):
     assert "27128" in out
 
 
+def test_start_noninteractive_without_service_spawns_directly(monkeypatch, capsys):
+    """Dashboard-triggered restart has no stdin; it must not prompt to install."""
+    calls = []
+    monkeypatch.setenv("HERMES_NONINTERACTIVE", "1")
+    monkeypatch.setattr(gateway_windows, "_assert_windows", lambda: None)
+    monkeypatch.setattr(gateway_windows, "_gateway_pids", lambda: [])
+    monkeypatch.setattr(gateway_windows, "is_task_registered", lambda: False)
+    monkeypatch.setattr(gateway_windows, "is_startup_entry_installed", lambda: False)
+    monkeypatch.setattr(
+        gateway_windows,
+        "_spawn_detached",
+        lambda path=None: calls.append(("spawn", path)) or 12345,
+    )
+    monkeypatch.setattr(
+        gateway_windows,
+        "_report_gateway_start",
+        lambda via: calls.append(("report_start", via)),
+    )
+    monkeypatch.setattr(
+        "hermes_cli.setup.prompt_yes_no",
+        lambda *args, **kwargs: calls.append(("prompt", args, kwargs)) or True,
+    )
+    monkeypatch.setattr(
+        gateway_windows,
+        "install",
+        lambda *args, **kwargs: calls.append(("install", args, kwargs)),
+    )
+
+    gateway_windows.start()
+
+    assert calls == [
+        ("spawn", None),
+        ("report_start", "direct spawn (PID 12345)"),
+    ]
+    out = capsys.readouterr().out
+    assert "Non-interactive start" in out
+
+
 def test_install_startup_fallback_does_not_spawn_when_gateway_already_running(monkeypatch, tmp_path, capsys):
     """Repeated Windows fallback installs should not spawn duplicate gateways."""
     script_path, calls = _arrange_startup_fallback(monkeypatch, tmp_path, [24476])

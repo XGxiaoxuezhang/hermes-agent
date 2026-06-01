@@ -100,6 +100,20 @@ function clearLastChatSessionId(): void {
   }
 }
 
+function replaceChatResumeParam(sessionId: string): void {
+  if (typeof window === "undefined" || !sessionId) return;
+  try {
+    const url = new URL(window.location.href);
+    if (url.pathname !== "/chat" || url.searchParams.get("resume") === sessionId) {
+      return;
+    }
+    url.searchParams.set("resume", sessionId);
+    window.history.replaceState(window.history.state, "", url);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * CSS width for xterm font tiers.
  *
@@ -241,9 +255,12 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
       try {
         const frame = JSON.parse(ev.data) as {
           method?: string;
-          params?: { type?: string; session_id?: string };
+          params?: {
+            payload?: { session_key?: string };
+            type?: string;
+          };
         };
-        const sessionId = frame.params?.session_id;
+        const sessionId = frame.params?.payload?.session_key;
         if (
           frame.method !== "event" ||
           frame.params?.type !== "session.info" ||
@@ -252,6 +269,7 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
           return;
         }
         writeLastChatSessionId(sessionId);
+        replaceChatResumeParam(sessionId);
       } catch {
         /* Ignore non-JSON frames. */
       }

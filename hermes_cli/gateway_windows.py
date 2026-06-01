@@ -990,6 +990,13 @@ def start() -> None:
     startup_installed = is_startup_entry_installed()
 
     if not task_installed and not startup_installed:
+        if os.environ.get("HERMES_NONINTERACTIVE"):
+            print("✗ Gateway service is not installed")
+            print("  Non-interactive start: launching gateway directly without installing login auto-start.")
+            pid = _spawn_detached()
+            _report_gateway_start(f"direct spawn (PID {pid})")
+            return
+
         from hermes_cli.setup import prompt_yes_no
 
         print("✗ Gateway service is not installed")

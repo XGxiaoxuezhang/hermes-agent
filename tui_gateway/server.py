@@ -1451,6 +1451,7 @@ def _session_info(agent) -> dict:
         reasoning_effort = str(reasoning_config.get("effort", "") or "")
     service_tier = getattr(agent, "service_tier", None) or ""
     info: dict = {
+        "session_key": getattr(agent, "session_id", "") or "",
         "model": getattr(agent, "model", ""),
         "reasoning_effort": reasoning_effort,
         "service_tier": service_tier,
