@@ -1,11 +1,15 @@
 import { Button } from "@nous-research/ui/ui/components/button";
+import { Checkbox } from "@nous-research/ui/ui/components/checkbox";
 import { ListItem } from "@nous-research/ui/ui/components/list-item";
 import { Spinner } from "@nous-research/ui/ui/components/spinner";
-import { Input } from "@/components/ui/input";
-import { useI18n } from "@/i18n";
+import { Input } from "@nous-research/ui/ui/components/input";
+import { Label } from "@nous-research/ui/ui/components/label";
 import type { GatewayClient } from "@/lib/gatewayClient";
 import { Check, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { cn, themedBody } from "@/lib/utils";
+import { fuzzyRank } from "@/lib/fuzzy";
 
 /**
  * Two-stage model picker modal.
@@ -64,7 +68,6 @@ interface Props {
 }
 
 export function ModelPickerDialog(props: Props) {
-  const { t } = useI18n();
   const {
     gw,
     sessionId,
@@ -72,7 +75,7 @@ export function ModelPickerDialog(props: Props) {
     loader,
     onApply,
     onClose,
-    title = t.modelPicker.title,
+    title = "Switch Model",
     alwaysGlobal = false,
   } = props;
   const standalone = !!loader && !!onApply;
@@ -148,25 +151,30 @@ export function ModelPickerDialog(props: Props) {
     [selectedProvider],
   );
 
-  const needle = query.trim().toLowerCase();
+  const trimmedQuery = query.trim();
 
+  // Fuzzy-ranked providers: match on name + slug + the provider's model ids so
+  // typing a model name surfaces its provider (preserves the prior behaviour
+  // where a model match also revealed its provider).
   const filteredProviders = useMemo(
     () =>
-      !needle
-        ? providers
-        : providers.filter(
-            (p) =>
-              p.name.toLowerCase().includes(needle) ||
-              p.slug.toLowerCase().includes(needle) ||
-              (p.models ?? []).some((m) => m.toLowerCase().includes(needle)),
-          ),
-    [providers, needle],
+      fuzzyRank(
+        providers,
+        trimmedQuery,
+        (p) => `${p.name} ${p.slug} ${(p.models ?? []).join(" ")}`,
+      ).map((r) => r.item),
+    [providers, trimmedQuery],
   );
 
+  // Fuzzy-ranked models carrying the matched character positions so the model
+  // list can highlight why each entry matched.
   const filteredModels = useMemo(
     () =>
-      !needle ? models : models.filter((m) => m.toLowerCase().includes(needle)),
-    [models, needle],
+      fuzzyRank(models, trimmedQuery, (m) => m).map((r) => ({
+        model: r.item,
+        positions: r.positions,
+      })),
+    [models, trimmedQuery],
   );
 
   const canConfirm = !!selectedProvider && !!selectedModel && !applying;
@@ -196,15 +204,22 @@ export function ModelPickerDialog(props: Props) {
     }
   };
 
-  return (
+  // Portal to document.body: the main dashboard column in App.tsx is
+  // `relative z-2`, which creates a stacking context that traps fixed
+  // descendants below the app sidebar (z-50). Without the portal this
+  // modal's z-[100] is scoped to z-2 and the sidebar covers its left
+  // edge — visible especially in the Large theme variants where the
+  // larger root font widens the dialog into the sidebar's column. See
+  // Toast.tsx for the same pattern.
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-3 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="model-picker-title"
     >
-      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-[min(44rem,calc(100vw-1.5rem))] flex-col overflow-hidden border border-border bg-card shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:w-[min(48rem,calc(100vw-2rem))]">
+      <div className={cn(themedBody, "relative w-full max-w-3xl max-h-[80vh] border border-border bg-card shadow-2xl flex flex-col")}>
         <Button
           ghost
           size="icon"
@@ -218,12 +233,12 @@ export function ModelPickerDialog(props: Props) {
         <header className="p-5 pb-3 border-b border-border">
           <h2
             id="model-picker-title"
-            className="font-display text-base tracking-wider uppercase"
+            className="font-mondwest text-display text-base tracking-wider"
           >
             {title}
           </h2>
           <p className="text-xs text-muted-foreground mt-1 font-mono">
-            {t.modelPicker.current}: {currentModel || `(${t.modelPicker.unknown})`}
+            current: {currentModel || "(unknown)"}
             {currentProviderSlug && ` · ${currentProviderSlug}`}
           </p>
         </header>
@@ -233,7 +248,7 @@ export function ModelPickerDialog(props: Props) {
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               autoFocus
-              placeholder={t.modelPicker.filterPlaceholder}
+              placeholder="Filter providers and models…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-7 h-8 text-sm"
@@ -241,14 +256,14 @@ export function ModelPickerDialog(props: Props) {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden sm:grid-cols-[200px_minmax(0,1fr)]">
+        <div className="flex-1 min-h-0 grid grid-cols-[200px_1fr] overflow-hidden">
           <ProviderColumn
             loading={loading}
             error={error}
             providers={filteredProviders}
             total={providers.length}
             selectedSlug={selectedSlug}
-            query={needle}
+            query={trimmedQuery}
             onSelect={(slug) => {
               setSelectedSlug(slug);
               setSelectedModel("");
@@ -274,31 +289,39 @@ export function ModelPickerDialog(props: Props) {
         <footer className="border-t border-border p-3 flex items-center justify-between gap-3 flex-wrap">
           {alwaysGlobal ? (
             <span className="text-xs text-muted-foreground">
-              {t.modelPicker.savesToConfig}
+              Saves to config.yaml — applies to new sessions.
             </span>
           ) : (
-            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
+            <div className="flex items-center gap-2">
+              <Checkbox
                 checked={persistGlobal}
-                onChange={(e) => setPersistGlobal(e.target.checked)}
-                className="cursor-pointer"
+                id="model-picker-persist-global"
+                onCheckedChange={(checked) =>
+                  setPersistGlobal(checked === true)
+                }
               />
-              {t.modelPicker.persistGlobal}
-            </label>
+
+              <Label
+                className="font-mondwest normal-case tracking-normal text-xs text-muted-foreground cursor-pointer"
+                htmlFor="model-picker-persist-global"
+              >
+                Persist globally (otherwise this session only)
+              </Label>
+            </div>
           )}
 
           <div className="flex items-center gap-2 ml-auto">
             <Button outlined onClick={onClose} disabled={applying}>
-              {t.common.cancel}
+              Cancel
             </Button>
             <Button onClick={confirm} disabled={!canConfirm}>
-              {applying ? <Spinner /> : t.modelPicker.switchAction}
+              {applying ? <Spinner /> : "Switch"}
             </Button>
           </div>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -323,13 +346,11 @@ function ProviderColumn({
   query: string;
   onSelect(slug: string): void;
 }) {
-  const { t } = useI18n();
-
   return (
-    <div className="max-h-48 overflow-y-auto border-b border-border sm:max-h-none sm:border-b-0 sm:border-r">
+    <div className="border-r border-border overflow-y-auto">
       {loading && (
         <div className="flex items-center gap-2 p-4 text-xs text-muted-foreground">
-          <Spinner className="text-xs" /> {t.modelPicker.loading}
+          <Spinner className="text-xs" /> loading…
         </div>
       )}
 
@@ -338,10 +359,10 @@ function ProviderColumn({
       {!loading && !error && providers.length === 0 && (
         <div className="p-4 text-xs text-muted-foreground italic">
           {query
-            ? t.modelPicker.noMatches
+            ? "no matches"
             : total === 0
-              ? t.modelPicker.noAuthenticatedProviders
-              : t.modelPicker.noMatches}
+              ? "no authenticated providers"
+              : "no matches"}
         </div>
       )}
 
@@ -361,12 +382,8 @@ function ProviderColumn({
                 <span className="font-medium truncate">{p.name}</span>
                 {p.is_current && <CurrentTag />}
               </div>
-              <div className="text-[0.65rem] text-muted-foreground/80 font-mono truncate">
-                {p.slug} ·{" "}
-                {t.modelPicker.modelsCount.replace(
-                  "{count}",
-                  String(p.total_models ?? p.models?.length ?? 0),
-                )}
+              <div className="text-xs text-text-secondary font-mono truncate">
+                {p.slug} · {p.total_models ?? p.models?.length ?? 0} models
               </div>
             </div>
           </ListItem>
@@ -391,7 +408,7 @@ function ModelColumn({
   onConfirm,
 }: {
   provider: ModelOptionProvider | null;
-  models: string[];
+  models: { model: string; positions: number[] }[];
   allModels: string[];
   selectedModel: string;
   currentModel: string;
@@ -399,13 +416,11 @@ function ModelColumn({
   onSelect(model: string): void;
   onConfirm(model: string): void;
 }) {
-  const { t } = useI18n();
-
   if (!provider) {
     return (
       <div className="overflow-y-auto">
         <div className="p-4 text-xs text-muted-foreground italic">
-          {t.modelPicker.pickProvider}
+          pick a provider →
         </div>
       </div>
     );
@@ -422,11 +437,11 @@ function ModelColumn({
       {models.length === 0 ? (
         <div className="p-4 text-xs text-muted-foreground italic">
           {allModels.length
-            ? t.modelPicker.noModelsMatch
-            : t.modelPicker.noModelsListed}
+            ? "no models match your filter"
+            : "no models listed for this provider"}
         </div>
       ) : (
-        models.map((m) => {
+        models.map(({ model: m, positions }) => {
           const active = m === selectedModel;
           const isCurrent =
             m === currentModel && provider.slug === currentProviderSlug;
@@ -442,7 +457,9 @@ function ModelColumn({
               <Check
                 className={`h-3 w-3 shrink-0 ${active ? "text-primary" : "text-transparent"}`}
               />
-              <span className="flex-1 truncate">{m}</span>
+              <span className="flex-1 truncate">
+                <HighlightedText text={m} positions={positions} />
+              </span>
               {isCurrent && <CurrentTag />}
             </ListItem>
           );
@@ -453,11 +470,45 @@ function ModelColumn({
 }
 
 function CurrentTag() {
-  const { t } = useI18n();
+  return (
+    <span className="text-display text-xs tracking-wider text-primary shrink-0">
+      current
+    </span>
+  );
+}
+
+/**
+ * Render `text` with the characters at `positions` emphasised, so users can
+ * see which characters their fuzzy query matched. Positions are indices into
+ * `text`; out-of-range indices are ignored.
+ */
+function HighlightedText({
+  text,
+  positions,
+}: {
+  text: string;
+  positions: number[];
+}) {
+  if (!positions.length) {
+    return <>{text}</>;
+  }
+
+  const hit = new Set(positions);
 
   return (
-    <span className="text-[0.6rem] uppercase tracking-wider text-primary/80 shrink-0">
-      {t.modelPicker.currentTag}
-    </span>
+    <>
+      {Array.from(text).map((ch, i) =>
+        hit.has(i) ? (
+          <mark
+            key={i}
+            className="bg-transparent text-primary font-semibold underline underline-offset-2"
+          >
+            {ch}
+          </mark>
+        ) : (
+          <span key={i}>{ch}</span>
+        ),
+      )}
+    </>
   );
 }

@@ -2,302 +2,215 @@
   <img src="assets/banner.png" alt="Hermes Agent" width="100%">
 </p>
 
-# Hermes Agent 中文 Windows 二开版
+# Hermes Agent ☤
 
-这是基于 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) 的中文二开分支，重点面向 **原生 Windows** 使用场景，不再要求必须跑在 WSL 里。
+<p align="center">
+  <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
+  <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://github.com/NousResearch/hermes-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
+  <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
+  <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/Lang-中文-red?style=for-the-badge" alt="中文"></a>
+</p>
 
-当前二开分支：`windows-dashboard-i18n`  
-默认网页入口：`http://127.0.0.1:9119`
+**The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
 
-## 本分支改动
+Use any model you want — [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (200+ models), [NovitaAI](https://novita.ai) (AI-native cloud for Model API, Agent Sandbox, and GPU Cloud), [NVIDIA NIM](https://build.nvidia.com) (Nemotron), [Xiaomi MiMo](https://platform.xiaomimimo.com), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), [Hugging Face](https://huggingface.co), OpenAI, or your own endpoint. Switch with `hermes model` — no code changes, no lock-in.
 
-- **中文化优先**：网页控制台、聊天页、配置页、插件页等主要界面已做中文化处理。
-- **原生 Windows 适配**：修复网关停止/重启、PID 检测、编码、路径识别等 Windows 问题。
-- **不再误判 WSL**：Agent 会明确知道自己运行在 native Windows；`/f/code` 是 Git Bash 的 Windows 盘符路径，不是 `/mnt/f` WSL 路径。
-- **网页聊天可用**：Dashboard 内置终端风格聊天界面，可以直接在网页里对话。
-- **网页配置模型和 Key**：模型、Provider、API Key、基础配置尽量在网页里完成，不再强制手改配置文件。
-- **Windows 一键安装脚本**：新机器可以从 GitHub 直接拉取本分支并安装。
-- **Dashboard 成品模式**：日常只需要 `9119`，不需要同时开 Vite 的 `5173`。
+<table>
+<tr><td><b>A real terminal interface</b></td><td>Full TUI with multiline editing, slash-command autocomplete, conversation history, interrupt-and-redirect, and streaming tool output.</td></tr>
+<tr><td><b>Lives where you do</b></td><td>Telegram, Discord, Slack, WhatsApp, Signal, and CLI — all from a single gateway process. Voice memo transcription, cross-platform conversation continuity.</td></tr>
+<tr><td><b>A closed learning loop</b></td><td>Agent-curated memory with periodic nudges. Autonomous skill creation after complex tasks. Skills self-improve during use. FTS5 session search with LLM summarization for cross-session recall. <a href="https://github.com/plastic-labs/honcho">Honcho</a> dialectic user modeling. Compatible with the <a href="https://agentskills.io">agentskills.io</a> open standard.</td></tr>
+<tr><td><b>Scheduled automations</b></td><td>Built-in cron scheduler with delivery to any platform. Daily reports, nightly backups, weekly audits — all in natural language, running unattended.</td></tr>
+<tr><td><b>Delegates and parallelizes</b></td><td>Spawn isolated subagents for parallel workstreams. Write Python scripts that call tools via RPC, collapsing multi-step pipelines into zero-context-cost turns.</td></tr>
+<tr><td><b>Runs anywhere, not just your laptop</b></td><td>Six terminal backends — local, Docker, SSH, Singularity, Modal, and Daytona. Daytona and Modal offer serverless persistence — your agent's environment hibernates when idle and wakes on demand, costing nearly nothing between sessions. Run it on a $5 VPS or a GPU cluster.</td></tr>
+<tr><td><b>Research-ready</b></td><td>Batch trajectory generation, trajectory compression for training the next generation of tool-calling models.</td></tr>
+</table>
 
-## 新机器一键安装
+---
 
-Hermes 本身运行不要求管理员权限。脚本会自动检查这些依赖；缺失时会优先使用 `winget --scope user` 做用户级安装：
+## Quick Install
 
-- Git for Windows: https://git-scm.com/download/win
-- Node.js 22 或更高版本: https://nodejs.org/
-- Python 3.11-3.14；脚本会优先使用 `py -3.14`，没有时再退到 `py -3.13` 或 `py -3.11` 创建虚拟环境
+### Linux, macOS, WSL2, Termux
 
-如果依赖包不支持用户级安装，`winget` 可能弹出管理员/UAC 请求。接受即可继续；如果你取消了，需要手动安装对应依赖后重跑。没有 `winget` 时脚本也会提示手动安装地址。
+```bash
+curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+```
 
-然后在 PowerShell 里运行：
+### Windows (native, PowerShell)
+
+> **Heads up:** Native Windows runs Hermes without WSL — CLI, gateway, TUI, and tools all work natively. If you'd rather use WSL2, the Linux/macOS one-liner above works there too. Found a bug? Please [file issues](https://github.com/NousResearch/hermes-agent/issues).
+
+Run this in PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/XGxiaoxuezhang/hermes-agent/windows-dashboard-i18n/scripts/windows/install-from-github.ps1 | iex"
+iex (irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1)
 ```
 
-默认安装到：
+The installer handles everything: uv, Python 3.11, Node.js, ripgrep, ffmpeg, **and a portable Git Bash** (MinGit, unpacked to `%LOCALAPPDATA%\hermes\git` — no admin required, completely isolated from any system Git install). Hermes uses this bundled Git Bash to run shell commands.
 
-```text
-%LOCALAPPDATA%\HermesAgent\hermes-agent
+If you already have Git installed, the installer detects it and uses that instead. Otherwise a ~45MB MinGit download is all you need — it won't touch or interfere with any system Git.
+
+> **Android / Termux:** The tested manual path is documented in the [Termux guide](https://hermes-agent.nousresearch.com/docs/getting-started/termux). On Termux, Hermes installs a curated `.[termux]` extra because the full `.[all]` extra currently pulls Android-incompatible voice dependencies.
+>
+> **Windows:** Native Windows is fully supported — the PowerShell one-liner above installs everything. If you'd rather use WSL2, the Linux command works there too. Native Windows install lives under `%LOCALAPPDATA%\hermes`; WSL2 installs under `~/.hermes` as on Linux.  The only Hermes feature that currently needs WSL2 specifically is the browser-based dashboard chat pane (it uses a POSIX PTY — classic CLI and gateway both run natively).
+
+After installation:
+
+```bash
+source ~/.bashrc    # reload shell (or: source ~/.zshrc)
+hermes              # start chatting!
 ```
 
-通常是：
+---
 
-```text
-C:\Users\<你的用户名>\AppData\Local\HermesAgent\hermes-agent
+## Getting Started
+
+```bash
+hermes              # Interactive CLI — start a conversation
+hermes model        # Choose your LLM provider and model
+hermes tools        # Configure which tools are enabled
+hermes config set   # Set individual config values
+hermes gateway      # Start the messaging gateway (Telegram, Discord, etc.)
+hermes setup        # Run the full setup wizard (configures everything at once)
+hermes claw migrate # Migrate from OpenClaw (if coming from OpenClaw)
+hermes update       # Update to the latest version
+hermes doctor       # Diagnose any issues
 ```
 
-指定安装目录，例如安装到 `F:\code\hermes-agent`：
+📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
 
-```powershell
-powershell -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/XGxiaoxuezhang/hermes-agent/windows-dashboard-i18n/scripts/windows/install-from-github.ps1))) -InstallDir 'F:\code\hermes-agent'"
+---
+
+## Skip the API-key collection — Nous Portal
+
+Hermes works with whatever provider you want — that's not changing. But if you'd rather not collect five separate API keys for the model, web search, image generation, TTS, and a cloud browser, **[Nous Portal](https://portal.nousresearch.com)** covers all of them under one subscription:
+
+- **300+ models** — pick any of them with `/model <name>`
+- **Tool Gateway** — web search (Firecrawl), image generation (FAL), text-to-speech (OpenAI), cloud browser (Browser Use), all routed through your sub. No extra accounts.
+
+One command from a fresh install:
+
+```bash
+hermes setup --portal
 ```
 
-安装完成后打开：
+That logs you in via OAuth, sets Nous as your provider, and turns on the Tool Gateway. Check what's wired up any time with `hermes portal info`. Full details on the [Tool Gateway docs page](https://hermes-agent.nousresearch.com/docs/user-guide/features/tool-gateway).
 
-```text
-http://127.0.0.1:9119
+You can still bring your own keys per-tool whenever you want — the gateway is per-backend, not all-or-nothing.
+
+---
+
+## CLI vs Messaging Quick Reference
+
+Hermes has two entry points: start the terminal UI with `hermes`, or run the gateway and talk to it from Telegram, Discord, Slack, WhatsApp, Signal, or Email. Once you're in a conversation, many slash commands are shared across both interfaces.
+
+| Action                         | CLI                                           | Messaging platforms                                                              |
+| ------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------- |
+| Start chatting                 | `hermes`                                      | Run `hermes gateway setup` + `hermes gateway start`, then send the bot a message |
+| Start fresh conversation       | `/new` or `/reset`                            | `/new` or `/reset`                                                               |
+| Change model                   | `/model [provider:model]`                     | `/model [provider:model]`                                                        |
+| Set a personality              | `/personality [name]`                         | `/personality [name]`                                                            |
+| Retry or undo the last turn    | `/retry`, `/undo`                             | `/retry`, `/undo`                                                                |
+| Compress context / check usage | `/compress`, `/usage`, `/insights [--days N]` | `/compress`, `/usage`, `/insights [days]`                                        |
+| Browse skills                  | `/skills` or `/<skill-name>`                  | `/<skill-name>`                                                                  |
+| Interrupt current work         | `Ctrl+C` or send a new message                | `/stop` or send a new message                                                    |
+| Platform-specific status       | `/platforms`                                  | `/status`, `/sethome`                                                            |
+
+For the full command lists, see the [CLI guide](https://hermes-agent.nousresearch.com/docs/user-guide/cli) and the [Messaging Gateway guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging).
+
+---
+
+## Documentation
+
+All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes-agent.nousresearch.com/docs/)**:
+
+| Section                                                                                             | What's Covered                                             |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [Quickstart](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart)                 | Install → setup → first conversation in 2 minutes          |
+| [CLI Usage](https://hermes-agent.nousresearch.com/docs/user-guide/cli)                              | Commands, keybindings, personalities, sessions             |
+| [Configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration)                | Config file, providers, models, all options                |
+| [Messaging Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/messaging)                | Telegram, Discord, Slack, WhatsApp, Signal, Home Assistant |
+| [Security](https://hermes-agent.nousresearch.com/docs/user-guide/security)                          | Command approval, DM pairing, container isolation          |
+| [Tools & Toolsets](https://hermes-agent.nousresearch.com/docs/user-guide/features/tools)            | 40+ tools, toolset system, terminal backends               |
+| [Skills System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)              | Procedural memory, Skills Hub, creating skills             |
+| [Memory](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory)                     | Persistent memory, user profiles, best practices           |
+| [MCP Integration](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp)               | Connect any MCP server for extended capabilities           |
+| [Cron Scheduling](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron)              | Scheduled tasks with platform delivery                     |
+| [Context Files](https://hermes-agent.nousresearch.com/docs/user-guide/features/context-files)       | Project context that shapes every conversation             |
+| [Architecture](https://hermes-agent.nousresearch.com/docs/developer-guide/architecture)             | Project structure, agent loop, key classes                 |
+| [Contributing](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing)             | Development setup, PR process, code style                  |
+| [CLI Reference](https://hermes-agent.nousresearch.com/docs/reference/cli-commands)                  | All commands and flags                                     |
+| [Environment Variables](https://hermes-agent.nousresearch.com/docs/reference/environment-variables) | Complete env var reference                                 |
+
+---
+
+## Migrating from OpenClaw
+
+If you're coming from OpenClaw, Hermes can automatically import your settings, memories, skills, and API keys.
+
+**During first-time setup:** The setup wizard (`hermes setup`) automatically detects `~/.openclaw` and offers to migrate before configuration begins.
+
+**Anytime after install:**
+
+```bash
+hermes claw migrate              # Interactive migration (full preset)
+hermes claw migrate --dry-run    # Preview what would be migrated
+hermes claw migrate --preset user-data   # Migrate without secrets
+hermes claw migrate --overwrite  # Overwrite existing conflicts
 ```
 
-## 已有源码目录的安装
+What gets imported:
 
-如果你已经 clone 了仓库：
+- **SOUL.md** — persona file
+- **Memories** — MEMORY.md and USER.md entries
+- **Skills** — user-created skills → `~/.hermes/skills/openclaw-imports/`
+- **Command allowlist** — approval patterns
+- **Messaging settings** — platform configs, allowed users, working directory
+- **API keys** — allowlisted secrets (Telegram, OpenRouter, OpenAI, Anthropic, ElevenLabs)
+- **TTS assets** — workspace audio files
+- **Workspace instructions** — AGENTS.md (with `--workspace-target`)
 
-```powershell
-cd F:\code\hermes-agent
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-local.ps1
+See `hermes claw migrate --help` for all options, or use the `openclaw-migration` skill for an interactive agent-guided migration with dry-run previews.
+
+---
+
+## Contributing
+
+We welcome contributions! See the [Contributing Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing) for development setup, code style, and PR process.
+
+Quick start for contributors — clone and go with `setup-hermes.sh`:
+
+```bash
+git clone https://github.com/NousResearch/hermes-agent.git
+cd hermes-agent
+./setup-hermes.sh     # installs uv, creates venv, installs .[all], symlinks ~/.local/bin/hermes
+./hermes              # auto-detects the venv, no need to `source` first
 ```
 
-这个脚本会：
+Manual path (equivalent to the above):
 
-- 检查并尽量自动安装 Git、Node.js、Python 3.14
-- 创建或修复 `venv`
-- 使用支持 Python 3.14 的 `pywinpty 3.x`，旧环境不兼容时会自动修复
-- 安装 `.[web,pty]`
-- 安装前端依赖
-- 构建网页资源
-- 启动 Dashboard
-
-## 日常启动
-
-后台启动 Dashboard：
-
-```powershell
-hermes-dashboard
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv .venv --python 3.11
+source .venv/bin/activate
+uv pip install -e ".[all,dev]"
+scripts/run_tests.sh
 ```
 
-后台启动后打开：
+---
 
-```text
-http://127.0.0.1:9119
-```
+## Community
 
-查看/停止后台 Dashboard：
+- 💬 [Discord](https://discord.gg/NousResearch)
+- 📚 [Skills Hub](https://agentskills.io)
+- 🐛 [Issues](https://github.com/NousResearch/hermes-agent/issues)
+- 🔌 [computer-use-linux](https://github.com/avifenesh/computer-use-linux) — Linux desktop-control MCP server for Hermes and other MCP hosts, with AT-SPI accessibility trees, Wayland/X11 input, screenshots, and compositor window targeting.
+- 🔌 [HermesClaw](https://github.com/AaronWong1999/hermesclaw) — Community WeChat bridge: Run Hermes Agent and OpenClaw on the same WeChat account.
 
-```powershell
-cd F:\code\hermes-agent
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\status-dashboard-background.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\stop-dashboard-background.ps1
-```
+---
 
-开机登录后自动后台启动：
+## License
 
-```powershell
-cd F:\code\hermes-agent
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-dashboard-startup.ps1
-```
+MIT — see [LICENSE](LICENSE).
 
-取消自动后台启动：
-
-```powershell
-cd F:\code\hermes-agent
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\uninstall-dashboard-startup.ps1
-```
-
-这个默认是当前用户的计划任务，不需要管理员权限。真正注册成 Windows Service 通常需要管理员权限，二开版本没有把它作为默认安装方式。
-
-如果你想以前台方式运行，便于看日志：
-
-```powershell
-cd F:\code\hermes-agent
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\run-dashboard.ps1
-```
-
-默认启动：
-
-```text
-http://127.0.0.1:9119
-```
-
-如果只是前端开发，需要热更新，才使用开发模式：
-
-```powershell
-cd F:\code\hermes-agent
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\dev-dashboard.ps1
-```
-
-开发模式会同时使用：
-
-- `9119`：FastAPI 后端和成品 Dashboard
-- `5173`：Vite 前端开发服务器，仅用于热更新
-
-日常使用只需要 `9119`。
-
-## 命令行 `hermes`
-
-安装脚本会在用户目录创建命令 shim，并把它加入用户 PATH：
-
-```text
-%LOCALAPPDATA%\HermesAgent\bin
-```
-
-安装后可以直接在 PowerShell 里运行：
-
-```powershell
-hermes
-```
-
-这会启动 Hermes CLI/TUI。也可以用：
-
-```powershell
-hermes dashboard --port 9119 --tui
-```
-
-如果当前 PowerShell 还识别不到 `hermes`，关闭窗口重新打开一次即可。
-
-## 模型和 API Key 配置
-
-进入 Dashboard 后，在网页里配置：
-
-- 模型 Provider
-- 模型名称
-- API Key
-- Base URL
-- 终端后端
-- 插件和工具
-
-如果你仍想用命令行，也可以：
-
-```powershell
-.\venv\Scripts\python.exe -m hermes_cli.main model
-.\venv\Scripts\python.exe -m hermes_cli.main setup
-```
-
-## 更新本二开分支
-
-如果只是更新你 fork 里的最新二开版本：
-
-```powershell
-cd F:\code\hermes-agent
-git pull origin windows-dashboard-i18n
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-local.ps1
-```
-
-如果要同步上游 NousResearch 的更新，同时保留本分支二开改动：
-
-```powershell
-cd F:\code\hermes-agent
-git remote add upstream https://github.com/NousResearch/hermes-agent.git
-git fetch upstream
-git checkout windows-dashboard-i18n
-git rebase upstream/main
-git push --force-with-lease origin windows-dashboard-i18n
-```
-
-如果已经添加过 `upstream`，第一行 `git remote add upstream ...` 不需要重复执行。
-
-更新前建议打一个备份分支：
-
-```powershell
-git branch backup-before-upstream-update
-```
-
-## 二次开发
-
-本分支推荐继续在源码目录开发：
-
-```powershell
-cd F:\code\hermes-agent
-```
-
-Python 代码是 editable install，改完重启 Dashboard 即可生效。
-
-前端代码在：
-
-```text
-web/
-```
-
-改前端后构建：
-
-```powershell
-cd F:\code\hermes-agent\web
-npm run build
-```
-
-然后重启：
-
-```powershell
-cd F:\code\hermes-agent
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\run-dashboard.ps1
-```
-
-## 常见问题
-
-### 9119 和 5173 分别是什么？
-
-- `9119` 是 Hermes Dashboard 后端和成品网页入口，日常使用访问它。
-- `5173` 是 Vite 前端开发服务器，只在做前端开发热更新时使用。
-
-### 为什么聊天里显示 `/f/code`？
-
-这是 Git Bash 在 Windows 下表示 `F:\code` 的方式，不是 WSL。  
-本分支已修复 `/mnt/f` 误判问题，Agent 会把 `/f/code/hermes-agent` 理解为 `F:\code\hermes-agent`。
-
-### 网页打不开怎么办？
-
-检查端口：
-
-```powershell
-Get-NetTCPConnection -LocalPort 9119 -State Listen
-```
-
-重新启动：
-
-```powershell
-cd F:\code\hermes-agent
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\run-dashboard.ps1
-```
-
-### 安装时 Python / pywinpty 报错怎么办？
-
-直接重新跑：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\windows\install-local.ps1 -RecreateVenv
-```
-
-脚本会重建 Python 3.11-3.14 的虚拟环境，并安装兼容的 Windows PTY 依赖。
-
-## 上游 Hermes Agent 能力简介
-
-Hermes Agent 是 Nous Research 开源的自进化 AI Agent，支持：
-
-- 多模型 Provider：Nous Portal、OpenRouter、OpenAI、Anthropic、Google、Kimi、MiniMax、z.ai/GLM、自定义 OpenAI 兼容端点等
-- 终端工具、文件工具、网页搜索、浏览器工具、MCP、定时任务
-- 记忆系统、技能系统、会话搜索
-- CLI/TUI、网页 Dashboard、消息网关
-- Telegram、Discord、Slack、WhatsApp、Signal 等平台网关
-- Docker、SSH、Modal、Daytona、Singularity 等终端后端
-
-上游文档：
-
-```text
-https://hermes-agent.nousresearch.com/docs/
-```
-
-## 许可证
-
-MIT，详见 [LICENSE](LICENSE)。
-
-本分支为个人二开版本；原始项目由 [Nous Research](https://nousresearch.com) 构建。
+Built by [Nous Research](https://nousresearch.com).

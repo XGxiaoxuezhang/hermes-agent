@@ -7,10 +7,14 @@ keystrokes can be fed back in.  The only caller today is the
 
 Design constraints:
 
-* **Cross-platform PTY backend.** POSIX uses :mod:`ptyprocess`; native
-  Windows uses :mod:`pywinpty` / ConPTY. If neither backend is available,
-  :class:`PtyUnavailableError` is raised with a user-readable install message
-  so the dashboard can render a banner instead of crashing.
+* **POSIX-only.**  This module depends on ``fcntl``, ``termios``, and
+  ``ptyprocess``, none of which exist on native Windows Python.  Native
+  Windows ConPTY is a different API (Windows 10 build 17763+) and would
+  need a separate Windows implementation (``pywinpty``) — that's tracked
+  as a future enhancement.  On native Windows, importing this module
+  raises :class:`ImportError` and the dashboard's ``/chat`` tab shows a
+  WSL-recommended banner instead of crashing.  Every other feature in the
+  dashboard (sessions, jobs, metrics, config editor) works natively.
 * **Zero Node dependency on the server side.**  We use :mod:`ptyprocess`,
   which is a pure-Python wrapper around the OS calls.  The browser talks
   to the same ``hermes --tui`` binary it would launch from the CLI, so
@@ -25,46 +29,60 @@ Design constraints:
 from __future__ import annotations
 
 import errno
+import fcntl
 import os
+import select
 import signal
 import struct
 import sys
+import termios
 import time
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 
-if sys.platform.startswith("win"):
-    try:
-        import winpty  # type: ignore
-        _PTY_BACKEND = "winpty"
-    except ImportError:  # pragma: no cover - dev env without pywinpty
-        winpty = None  # type: ignore
-        _PTY_BACKEND = ""
+try:
+    import ptyprocess  # type: ignore
+    _PTY_AVAILABLE = not sys.platform.startswith("win")
+except ImportError:  # pragma: no cover - dev env without ptyprocess
     ptyprocess = None  # type: ignore
-    fcntl = None  # type: ignore
-    select = None  # type: ignore
-    termios = None  # type: ignore
-else:
-    try:
-        import fcntl
-        import select
-        import termios
-        import ptyprocess  # type: ignore
-        _PTY_BACKEND = "ptyprocess"
-    except ImportError:  # pragma: no cover - dev env without ptyprocess
-        ptyprocess = None  # type: ignore
-        fcntl = None  # type: ignore
-        select = None  # type: ignore
-        termios = None  # type: ignore
-        _PTY_BACKEND = ""
+    _PTY_AVAILABLE = False
 
 
 __all__ = ["PtyBridge", "PtyUnavailableError"]
 
 
+# ``struct winsize`` packs rows/cols as unsigned short (0..65535).  We clamp
+# well below that ceiling: real terminals never exceed a couple thousand
+# columns, and a value above this is a broken probe (WSL2 reports
+# columns=131072) rather than a genuine ultrawide.  Lower bound is 1 — a
+# zero/negative dimension is the classic "no size yet" signal.
+_MIN_DIMENSION = 1
+_MAX_COLS = 2000
+_MAX_ROWS = 1000
+
+
+def _clamp_dimension(value: int, maximum: int) -> int:
+    """Clamp a reported terminal dimension into ``[_MIN_DIMENSION, maximum]``.
+
+    Non-integer / non-finite values fall back to ``_MIN_DIMENSION`` so a bad
+    probe can never reach ``struct.pack`` and raise ``struct.error``.
+    """
+    try:
+        n = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return _MIN_DIMENSION
+    if n < _MIN_DIMENSION:
+        return _MIN_DIMENSION
+    if n > maximum:
+        return maximum
+    return n
+
+
 class PtyUnavailableError(RuntimeError):
     """Raised when a PTY cannot be created on this platform.
 
-    The dashboard surfaces the message to the user as a chat-tab banner.
+    Today this means native Windows (no ConPTY bindings) or a dev
+    environment missing the ``ptyprocess`` dependency.  The dashboard
+    surfaces the message to the user as a chat-tab banner.
     """
 
 
@@ -79,9 +97,9 @@ class PtyBridge:
     ``os.write`` on the master fd, which is safe.
     """
 
-    def __init__(self, proc: Any):
+    def __init__(self, proc: "ptyprocess.PtyProcess"):  # type: ignore[name-defined]
         self._proc = proc
-        self._fd: Optional[int] = getattr(proc, "fd", None)
+        self._fd: int = proc.fd
         self._closed = False
 
     # -- lifecycle --------------------------------------------------------
@@ -89,7 +107,7 @@ class PtyBridge:
     @classmethod
     def is_available(cls) -> bool:
         """True if a PTY can be spawned on this platform."""
-        return bool(_PTY_BACKEND)
+        return bool(_PTY_AVAILABLE)
 
     @classmethod
     def spawn(
@@ -107,12 +125,11 @@ class PtyBridge:
         PTY.  Raises :class:`FileNotFoundError` or :class:`OSError` for
         ordinary exec failures (missing binary, bad cwd, etc.).
         """
-        if not _PTY_BACKEND:
+        if not _PTY_AVAILABLE:
             if sys.platform.startswith("win"):
                 raise PtyUnavailableError(
-                    "The `pywinpty` package is missing. "
-                    "Install with: pip install pywinpty "
-                    "(or pip install -e '.[pty]')."
+                    "Pseudo-terminals are unavailable on this platform. "
+                    "Hermes Agent supports Windows only via WSL."
                 )
             if ptyprocess is None:
                 raise PtyUnavailableError(
@@ -129,20 +146,12 @@ class PtyBridge:
         spawn_env = (os.environ.copy() if env is None else env.copy())
         if not spawn_env.get("TERM"):
             spawn_env["TERM"] = "xterm-256color"
-        if _PTY_BACKEND == "winpty":
-            proc = winpty.PtyProcess.spawn(  # type: ignore[union-attr]
-                list(argv),
-                cwd=cwd,
-                env=spawn_env,
-                dimensions=(rows, cols),
-            )
-        else:
-            proc = ptyprocess.PtyProcess.spawn(  # type: ignore[union-attr]
-                list(argv),
-                cwd=cwd,
-                env=spawn_env,
-                dimensions=(rows, cols),
-            )
+        proc = ptyprocess.PtyProcess.spawn(  # type: ignore[union-attr]
+            list(argv),
+            cwd=cwd,
+            env=spawn_env,
+            dimensions=(rows, cols),
+        )
         return cls(proc)
 
     @property
@@ -172,22 +181,6 @@ class PtyBridge:
         """
         if self._closed:
             return None
-        if _PTY_BACKEND == "winpty":
-            try:
-                data = self._proc.read(65536)
-            except EOFError:
-                return None
-            except OSError as exc:
-                if exc.errno in (errno.EIO, errno.EBADF):
-                    return None
-                raise
-            if data is None:
-                return None
-            if isinstance(data, str):
-                return data.encode("utf-8", errors="replace")
-            return bytes(data)
-        if self._fd is None or select is None:
-            return None
         try:
             readable, _, _ = select.select([self._fd], [], [], timeout)
         except (OSError, ValueError):
@@ -209,11 +202,6 @@ class PtyBridge:
         """Write raw bytes to the PTY master (i.e. the child's stdin)."""
         if self._closed or not data:
             return
-        if _PTY_BACKEND == "winpty":
-            self._proc.write(data.decode("utf-8", errors="replace"))
-            return
-        if self._fd is None:
-            return
         # os.write can return a short write under load; loop until drained.
         view = memoryview(data)
         while view:
@@ -228,19 +216,23 @@ class PtyBridge:
             view = view[n:]
 
     def resize(self, cols: int, rows: int) -> None:
-        """Forward a terminal resize to the child via ``TIOCSWINSZ``."""
+        """Forward a terminal resize to the child via ``TIOCSWINSZ``.
+
+        Dimensions are clamped to a sane range first.  Some hosts report
+        garbage window sizes — the motivating case is WSL2, where xterm.js
+        in the dashboard ``/chat`` tab can pick up ``columns=131072,
+        rows=1`` from a broken winsize probe.  ``struct winsize`` packs each
+        field as an unsigned short (max 65535), so an unclamped 131072 would
+        raise ``struct.error`` (not ``OSError``) and break the resize path,
+        leaving the TUI laid out for a one-row / absurdly-wide screen —
+        which is what shows up as blank / disappearing text.
+        """
         if self._closed:
             return
-        if _PTY_BACKEND == "winpty":
-            try:
-                self._proc.setwinsize(max(1, rows), max(1, cols))
-            except Exception:
-                pass
-            return
-        if self._fd is None or fcntl is None or termios is None:
-            return
+        cols = _clamp_dimension(cols, _MAX_COLS)
+        rows = _clamp_dimension(rows, _MAX_ROWS)
         # struct winsize: rows, cols, xpixel, ypixel (all unsigned short)
-        winsize = struct.pack("HHHH", max(1, rows), max(1, cols), 0, 0)
+        winsize = struct.pack("HHHH", rows, cols, 0, 0)
         try:
             fcntl.ioctl(self._fd, termios.TIOCSWINSZ, winsize)
         except OSError:
@@ -257,32 +249,6 @@ class PtyBridge:
         if self._closed:
             return
         self._closed = True
-
-        if _PTY_BACKEND == "winpty":
-            try:
-                if self._proc.isalive():
-                    self._proc.terminate()
-            except Exception:
-                pass
-            deadline = time.monotonic() + 0.5
-            while True:
-                try:
-                    alive = self._proc.isalive()
-                except Exception:
-                    alive = False
-                if not alive or time.monotonic() >= deadline:
-                    break
-                time.sleep(0.02)
-            try:
-                if self._proc.isalive():
-                    self._proc.kill(signal.SIGTERM)
-            except Exception:
-                pass
-            try:
-                self._proc.close(force=True)
-            except Exception:
-                pass
-            return
 
         # SIGHUP is the conventional "your terminal went away" signal.
         # We escalate if the child ignores it.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   Eye,
   EyeOff,
@@ -17,9 +17,9 @@ import {
 import { api } from "@/lib/api";
 import type { EnvVarInfo } from "@/lib/api";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
-import { Toast } from "@/components/Toast";
-import { useConfirmDelete } from "@/hooks/useConfirmDelete";
-import { useToast } from "@/hooks/useToast";
+import { Toast } from "@nous-research/ui/ui/components/toast";
+import { useConfirmDelete } from "@nous-research/ui/hooks/use-confirm-delete";
+import { useToast } from "@nous-research/ui/hooks/use-toast";
 import { OAuthProvidersCard } from "@/components/OAuthProvidersCard";
 import { Button } from "@nous-research/ui/ui/components/button";
 import { ListItem } from "@nous-research/ui/ui/components/list-item";
@@ -30,11 +30,12 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@nous-research/ui/ui/components/card";
 import { Badge } from "@nous-research/ui/ui/components/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@nous-research/ui/ui/components/input";
+import { Label } from "@nous-research/ui/ui/components/label";
 import { useI18n } from "@/i18n";
+import { usePageHeader } from "@/contexts/usePageHeader";
 import { PluginSlot } from "@/plugins";
 
 /* ------------------------------------------------------------------ */
@@ -46,26 +47,24 @@ const PROVIDER_GROUPS: { prefix: string; name: string; priority: number }[] = [
   // Nous Portal first
   { prefix: "NOUS_", name: "Nous Portal", priority: 0 },
   // Then alphabetical by display name
-  { prefix: "ANTHROPIC_", name: "Anthropic", priority: 2 },
-  { prefix: "DASHSCOPE_", name: "DashScope (Qwen)", priority: 3 },
-  { prefix: "HERMES_QWEN_", name: "DashScope (Qwen)", priority: 3 },
-  { prefix: "DEEPSEEK_", name: "DeepSeek", priority: 4 },
-  { prefix: "GOOGLE_", name: "Gemini", priority: 5 },
-  { prefix: "GEMINI_", name: "Gemini", priority: 5 },
-  { prefix: "GLM_", name: "GLM / Z.AI", priority: 6 },
-  { prefix: "ZAI_", name: "GLM / Z.AI", priority: 6 },
-  { prefix: "Z_AI_", name: "GLM / Z.AI", priority: 6 },
-  { prefix: "HF_", name: "Hugging Face", priority: 7 },
-  { prefix: "KIMI_", name: "Kimi / Moonshot", priority: 8 },
-  { prefix: "MINIMAX_CN_", name: "MiniMax (China)", priority: 10 },
-  { prefix: "MINIMAX_", name: "MiniMax", priority: 9 },
-  { prefix: "OPENCODE_GO_", name: "OpenCode Go", priority: 11 },
-  { prefix: "OPENCODE_ZEN_", name: "OpenCode Zen", priority: 12 },
-  { prefix: "OPENROUTER_", name: "OpenRouter", priority: 13 },
-  { prefix: "XIAOMI_", name: "Xiaomi MiMo", priority: 14 },
+  { prefix: "ANTHROPIC_", name: "Anthropic", priority: 1 },
+  { prefix: "DASHSCOPE_", name: "DashScope (Qwen)", priority: 2 },
+  { prefix: "HERMES_QWEN_", name: "DashScope (Qwen)", priority: 2 },
+  { prefix: "DEEPSEEK_", name: "DeepSeek", priority: 3 },
+  { prefix: "GOOGLE_", name: "Gemini", priority: 4 },
+  { prefix: "GEMINI_", name: "Gemini", priority: 4 },
+  { prefix: "GLM_", name: "GLM / Z.AI", priority: 5 },
+  { prefix: "ZAI_", name: "GLM / Z.AI", priority: 5 },
+  { prefix: "Z_AI_", name: "GLM / Z.AI", priority: 5 },
+  { prefix: "HF_", name: "Hugging Face", priority: 6 },
+  { prefix: "KIMI_", name: "Kimi / Moonshot", priority: 7 },
+  { prefix: "MINIMAX_CN_", name: "MiniMax (China)", priority: 9 },
+  { prefix: "MINIMAX_", name: "MiniMax", priority: 8 },
+  { prefix: "OPENCODE_GO_", name: "OpenCode Go", priority: 10 },
+  { prefix: "OPENCODE_ZEN_", name: "OpenCode Zen", priority: 11 },
+  { prefix: "OPENROUTER_", name: "OpenRouter", priority: 12 },
+  { prefix: "XIAOMI_", name: "Xiaomi MiMo", priority: 13 },
 ];
-
-const NEW_API_PROVIDER_PRIORITY = 15;
 
 function getProviderGroup(key: string): string {
   for (const g of PROVIDER_GROUPS) {
@@ -134,12 +133,12 @@ function EnvVarRow({
   // Compact inline row for unset, non-editing keys (used inside provider groups)
   if (compact && !info.is_set && !isEditing) {
     return (
-      <div className="flex items-center justify-between gap-3 py-1.5 opacity-50 hover:opacity-100 transition-opacity">
+      <div className="flex items-center justify-between gap-3 py-1.5 min-w-0 overflow-hidden text-text-secondary hover:text-foreground transition-colors">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-mono-ui text-[0.7rem] text-muted-foreground">
+          <span className="font-mono-ui text-xs">
             {varKey}
           </span>
-          <span className="text-[0.65rem] text-muted-foreground/60 truncate hidden sm:block">
+          <span className="text-xs text-text-tertiary truncate hidden sm:block">
             {info.description}
           </span>
         </div>
@@ -149,7 +148,7 @@ function EnvVarRow({
               href={info.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[0.65rem] text-primary hover:underline"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
               {t.env.getKey} <ExternalLink className="h-2.5 w-2.5" />
             </a>
@@ -170,12 +169,12 @@ function EnvVarRow({
   // Non-compact unset row
   if (!info.is_set && !isEditing) {
     return (
-      <div className="flex items-center justify-between gap-3 border border-border/50 px-4 py-2.5 opacity-60 hover:opacity-100 transition-opacity">
+      <div className="flex items-center justify-between gap-3 border border-border/50 px-4 py-2.5 min-w-0 overflow-hidden text-text-secondary hover:text-foreground transition-colors">
         <div className="flex items-center gap-3 min-w-0">
-          <Label className="font-mono-ui text-[0.7rem] text-muted-foreground">
+          <Label className="font-mono-ui text-xs">
             {varKey}
           </Label>
-          <span className="text-[0.65rem] text-muted-foreground/60 truncate hidden sm:block">
+          <span className="text-xs text-text-tertiary truncate hidden sm:block">
             {info.description}
           </span>
         </div>
@@ -185,7 +184,7 @@ function EnvVarRow({
               href={info.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[0.65rem] text-primary hover:underline"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
               {t.env.getKey} <ExternalLink className="h-2.5 w-2.5" />
             </a>
@@ -205,10 +204,10 @@ function EnvVarRow({
 
   // Full expanded row for set keys or keys being edited
   return (
-    <div className="grid gap-2 border border-border p-4">
+    <div className="grid gap-2 border border-border p-4 min-w-0 overflow-hidden">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <Label className="font-mono-ui text-[0.7rem]">{varKey}</Label>
+          <Label className="font-mono-ui text-xs">{varKey}</Label>
           <Badge tone={info.is_set ? "success" : "outline"}>
             {info.is_set ? t.common.set : t.env.notSet}
           </Badge>
@@ -218,7 +217,7 @@ function EnvVarRow({
             href={info.url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 text-[0.65rem] text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
             {t.env.getKey} <ExternalLink className="h-2.5 w-2.5" />
           </a>
@@ -233,7 +232,7 @@ function EnvVarRow({
             <Badge
               key={tool}
               tone="secondary"
-              className="text-[0.6rem] py-0 px-1.5"
+              className="text-xs py-0 px-1.5"
             >
               {tool}
             </Badge>
@@ -397,7 +396,7 @@ function ProviderGroupCard({
             {group.name === "Other" ? t.common.other : group.name}
           </span>
           {hasAnyConfigured && (
-            <Badge tone="success" className="text-[0.6rem]">
+            <Badge tone="success" className="text-xs">
               {configuredCount} {t.common.set.toLowerCase()}
             </Badge>
           )}
@@ -408,13 +407,13 @@ function ProviderGroupCard({
               href={keyUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[0.65rem] text-primary hover:underline"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               {t.env.getKey} <ExternalLink className="h-2.5 w-2.5" />
             </a>
           )}
-          <span className="text-[0.65rem] text-muted-foreground/60">
+          <span className="text-xs text-text-tertiary">
             {t.env.keysCount
               .replace("{count}", String(group.entries.length))
               .replace("{s}", group.entries.length !== 1 ? "s" : "")}
@@ -483,119 +482,6 @@ function ProviderGroupCard({
   );
 }
 
-function NewApiCredentialsCard({
-  envVars,
-  onSaved,
-  showToast,
-}: {
-  envVars: Record<string, EnvVarInfo>;
-  onSaved(): void;
-  showToast(message: string, type: "success" | "error"): void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [baseUrl, setBaseUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [saving, setSaving] = useState(false);
-  const { t } = useI18n();
-
-  const canSave = baseUrl.trim() && apiKey.trim() && !saving;
-  const newApiEntries = Object.entries(envVars).filter(([key]) =>
-    key.startsWith("NEW_API_"),
-  );
-  const configuredCount = newApiEntries.filter(([, info]) => info.is_set).length;
-  const hasAnyConfigured = configuredCount > 0;
-
-  const save = async () => {
-    if (!canSave) return;
-    setSaving(true);
-    try {
-      await api.saveCustomOpenAIProvider({
-        slug: "new-api",
-        name: "New API",
-        base_url: baseUrl.trim(),
-        api_key: apiKey.trim(),
-      });
-      setApiKey("");
-      showToast("New API 凭据已保存，模型页会自动读取模型列表", "success");
-      onSaved();
-    } catch (e) {
-      showToast(`保存 New API 凭据失败：${e}`, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="border border-border">
-      <ListItem
-        onClick={() => setExpanded(!expanded)}
-        aria-expanded={expanded}
-        className="justify-between gap-3 px-4 py-3 hover:bg-primary/5"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          )}
-          <Zap className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="font-semibold text-sm tracking-wide">
-            New API / OpenAI 兼容接口
-          </span>
-          {hasAnyConfigured && (
-            <Badge tone="success" className="text-[0.6rem]">
-              {configuredCount} {t.common.set.toLowerCase()}
-            </Badge>
-          )}
-        </div>
-        <span className="text-[0.65rem] text-muted-foreground/60">
-          {t.env.keysCount
-            .replace("{count}", String(Math.max(newApiEntries.length, 2)))
-            .replace("{s}", "s")}
-        </span>
-      </ListItem>
-
-      {expanded && (
-        <div className="border-t border-border px-4 py-3">
-          <p className="mb-3 text-xs text-muted-foreground">
-            保存 New API 的 Base URL 和令牌；模型列表会在模型页通过 /v1/models 自动拉取。
-          </p>
-          <div className="grid gap-3 md:grid-cols-[1.35fr_1fr_auto] md:items-end">
-            <label className="grid gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Base URL</span>
-              <Input
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="https://你的-new-api域名/v1"
-              />
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">API Key</span>
-              <Input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
-              />
-            </label>
-            <Button
-              type="button"
-              onClick={save}
-              disabled={!canSave}
-              prefix={saving ? <Spinner /> : <Save />}
-            >
-              保存凭据
-            </Button>
-            <p className="text-xs text-muted-foreground md:col-span-3">
-              保存后进入“模型”页，点主模型的“更改”，选择 New API 下自动发现的模型。
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
@@ -608,6 +494,7 @@ export default function EnvPage() {
   const [showAdvanced, setShowAdvanced] = useState(true); // Show all providers by default
   const { toast, showToast } = useToast();
   const { t } = useI18n();
+  const { setAfterTitle } = usePageHeader();
 
   useEffect(() => {
     api
@@ -616,12 +503,60 @@ export default function EnvPage() {
       .catch(() => {});
   }, []);
 
-  const reloadVars = useCallback(() => {
-    api
-      .getEnvVars()
-      .then(setVars)
-      .catch(() => {});
-  }, []);
+  // Scroll-to sub-nav in the page header
+  const sections = useMemo(() => {
+    const items: { id: string; label: string }[] = [
+      { id: "section-oauth", label: "OAuth" },
+      { id: "section-providers", label: "Providers" },
+    ];
+    if (vars) {
+      const categories = ["tool", "messaging", "setting"];
+      const CATEGORY_LABELS: Record<string, string> = {
+        tool: "Tools",
+        messaging: t.common.gateway ?? "Gateway",
+        setting: "Settings",
+      };
+      for (const cat of categories) {
+        const hasEntries = Object.values(vars).some(
+          (info) => info.category === cat && !info.channel_managed,
+        );
+        if (hasEntries) {
+          items.push({ id: `section-${cat}`, label: CATEGORY_LABELS[cat] ?? cat });
+        }
+      }
+    }
+    return items;
+  }, [vars, t]);
+
+  useLayoutEffect(() => {
+    if (!vars) {
+      setAfterTitle(null);
+      return;
+    }
+    const scrollTo = (id: string) => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    setAfterTitle(
+      <nav
+        className="flex shrink-0 flex-nowrap items-center gap-1"
+        aria-label="Jump to section"
+      >
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => scrollTo(s.id)}
+            className="shrink-0 cursor-pointer px-2 py-0.5 font-mondwest text-display text-xs tracking-wider text-text-secondary hover:text-foreground border border-border/50 hover:border-foreground/30 transition-colors"
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>,
+    );
+    return () => {
+      setAfterTitle(null);
+    };
+  }, [vars, sections, setAfterTitle]);
 
   const handleSave = async (key: string) => {
     const value = edits[key];
@@ -725,10 +660,8 @@ export default function EnvPage() {
     if (!vars) return { providerGroups: [], nonProviderGrouped: [] };
 
     const providerEntries = Object.entries(vars).filter(
-      ([key, info]) =>
-        info.category === "provider" &&
-        !key.startsWith("NEW_API_") &&
-        (showAdvanced || !info.advanced),
+      ([, info]) =>
+        info.category === "provider" && (showAdvanced || !info.advanced),
     );
 
     // Group by provider
@@ -748,21 +681,33 @@ export default function EnvPage() {
       }))
       .sort((a, b) => a.priority - b.priority);
 
-    // Non-provider categories — use translated labels
+    // Non-provider categories — use translated labels. Platform credentials
+    // (channel_managed) are configured on the Channels page, so the messaging
+    // category here is trimmed down to cross-cutting gateway / API / proxy
+    // settings and relabelled accordingly.
     const CATEGORY_META_LABELS: Record<string, string> = {
       tool: t.app.nav.keys,
-      messaging: t.common.messaging,
+      messaging: t.common.gateway ?? "Gateway",
       setting: t.app.nav.config,
+    };
+    const CATEGORY_META_HINTS: Record<string, string | undefined> = {
+      messaging:
+        t.common.gatewayHint ??
+        "Messaging platforms, the API server and webhooks are configured on the Channels page. These are gateway-wide settings (proxy/relay mode and the global allowlist).",
     };
     const otherCategories = ["tool", "messaging", "setting"];
     const nonProvider = otherCategories.map((cat) => {
       const entries = Object.entries(vars).filter(
-        ([, info]) => info.category === cat && (showAdvanced || !info.advanced),
+        ([, info]) =>
+          info.category === cat &&
+          !info.channel_managed &&
+          (showAdvanced || !info.advanced),
       );
       const setEntries = entries.filter(([, info]) => info.is_set);
       const unsetEntries = entries.filter(([, info]) => !info.is_set);
       return {
         label: CATEGORY_META_LABELS[cat] ?? cat,
+        hint: CATEGORY_META_HINTS[cat],
         icon: CATEGORY_META_ICONS[cat] ?? KeyRound,
         category: cat,
         setEntries,
@@ -782,20 +727,8 @@ export default function EnvPage() {
     );
   }
 
-  const newApiEntries = Object.entries(vars).filter(([key]) =>
-    key.startsWith("NEW_API_"),
-  );
-  const newApiConfigured = newApiEntries.some(([, info]) => info.is_set);
-  const totalProviders = providerGroups.length + 1;
-  const configuredProviders =
-    providerGroups.filter((g) => g.hasAnySet).length +
-    (newApiConfigured ? 1 : 0);
-  const newApiInsertAfter =
-    providerGroups.find((g) => g.name === "Xiaomi MiMo")?.name ??
-    providerGroups
-      .filter((g) => g.priority < NEW_API_PROVIDER_PRIORITY)
-      .at(-1)?.name ??
-    null;
+  const totalProviders = providerGroups.length;
+  const configuredProviders = providerGroups.filter((g) => g.hasAnySet).length;
 
   const pendingClearKey = keyClear.pendingId;
   const pendingKeyDescription =
@@ -824,7 +757,7 @@ export default function EnvPage() {
           <p className="text-sm text-muted-foreground">
             {t.env.description} <code>~/.hermes/.env</code>
           </p>
-          <p className="text-[0.7rem] text-muted-foreground/70">
+          <p className="text-xs text-text-tertiary">
             {t.env.changesNote}
           </p>
         </div>
@@ -837,12 +770,14 @@ export default function EnvPage() {
         </Button>
       </div>
 
-      <OAuthProvidersCard
-        onError={(msg) => showToast(msg, "error")}
-        onSuccess={(msg) => showToast(msg, "success")}
-      />
+      <div id="section-oauth">
+        <OAuthProvidersCard
+          onError={(msg) => showToast(msg, "error")}
+          onSuccess={(msg) => showToast(msg, "success")}
+        />
+      </div>
 
-      <Card>
+      <Card id="section-providers">
         <CardHeader className="border-b border-border bg-card">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-muted-foreground" />
@@ -856,113 +791,54 @@ export default function EnvPage() {
         </CardHeader>
 
         <CardContent className="grid gap-0 p-0">
-          {newApiInsertAfter === null && (
-            <NewApiCredentialsCard
-              envVars={vars}
-              onSaved={reloadVars}
-              showToast={showToast}
-            />
-          )}
           {providerGroups.map((group) => (
-            <div key={group.name}>
-              <ProviderGroupCard
-                group={group}
-                edits={edits}
-                setEdits={setEdits}
-                revealed={revealed}
-                saving={saving}
-                onSave={handleSave}
-                onClear={keyClear.requestDelete}
-                onReveal={handleReveal}
-                onCancelEdit={cancelEdit}
-                clearDialogOpen={keyClear.isOpen}
-              />
-              {group.name === newApiInsertAfter && (
-                <NewApiCredentialsCard
-                  envVars={vars}
-                  onSaved={reloadVars}
-                  showToast={showToast}
-                />
-              )}
-            </div>
+            <ProviderGroupCard
+              key={group.name}
+              group={group}
+              edits={edits}
+              setEdits={setEdits}
+              revealed={revealed}
+              saving={saving}
+              onSave={handleSave}
+              onClear={keyClear.requestDelete}
+              onReveal={handleReveal}
+              onCancelEdit={cancelEdit}
+              clearDialogOpen={keyClear.isOpen}
+            />
           ))}
         </CardContent>
       </Card>
 
-      {nonProviderGrouped.map(
-        ({
-          label,
-          icon: Icon,
-          setEntries,
-          unsetEntries,
-          totalEntries,
-          category,
-        }) => {
-          if (totalEntries === 0) return null;
+      {nonProviderGrouped.map((section) => {
+        if (section.totalEntries === 0) return null;
 
-          return (
-            <Card key={category}>
-              <CardHeader className="border-b border-border bg-card">
-                <div className="flex items-center gap-2">
-                  <Icon className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-base">{label}</CardTitle>
-                </div>
-                <CardDescription>
-                  {setEntries.length} {t.common.of} {totalEntries}{" "}
-                  {t.common.configured}
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="grid gap-3 pt-4">
-                {setEntries.map(([key, info]) => (
-                  <EnvVarRow
-                    key={key}
-                    varKey={key}
-                    info={info}
-                    edits={edits}
-                    setEdits={setEdits}
-                    revealed={revealed}
-                    saving={saving}
-                    onSave={handleSave}
-                    onClear={keyClear.requestDelete}
-                    onReveal={handleReveal}
-                    onCancelEdit={cancelEdit}
-                    clearDialogOpen={keyClear.isOpen}
-                  />
-                ))}
-
-                {unsetEntries.length > 0 && (
-                  <CollapsibleUnset
-                    category={category}
-                    unsetEntries={unsetEntries}
-                    edits={edits}
-                    setEdits={setEdits}
-                    revealed={revealed}
-                    saving={saving}
-                    onSave={handleSave}
-                    onClear={keyClear.requestDelete}
-                    onReveal={handleReveal}
-                    onCancelEdit={cancelEdit}
-                    clearDialogOpen={keyClear.isOpen}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          );
-        },
-      )}
+        return (
+          <EnvCategoryCard
+            key={section.category}
+            section={section}
+            edits={edits}
+            setEdits={setEdits}
+            revealed={revealed}
+            saving={saving}
+            onSave={handleSave}
+            onClear={keyClear.requestDelete}
+            onReveal={handleReveal}
+            onCancelEdit={cancelEdit}
+            clearDialogOpen={keyClear.isOpen}
+          />
+        );
+      })}
       <PluginSlot name="env:bottom" />
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  CollapsibleUnset — for non-provider categories                     */
+/*  EnvCategoryCard — keys / messaging / settings sections             */
 /* ------------------------------------------------------------------ */
 
-function CollapsibleUnset({
-  category: _category,
-  unsetEntries,
+function EnvCategoryCard({
+  section,
   edits,
   setEdits,
   revealed,
@@ -973,8 +849,15 @@ function CollapsibleUnset({
   onCancelEdit,
   clearDialogOpen = false,
 }: {
-  category: string;
-  unsetEntries: [string, EnvVarInfo][];
+  section: {
+    category: string;
+    hint?: string;
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    setEntries: [string, EnvVarInfo][];
+    totalEntries: number;
+    unsetEntries: [string, EnvVarInfo][];
+  };
   edits: Record<string, string>;
   setEdits: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   revealed: Record<string, string>;
@@ -985,39 +868,70 @@ function CollapsibleUnset({
   onCancelEdit: (key: string) => void;
   clearDialogOpen?: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(true);
+  const noneConfigured = section.setEntries.length === 0;
+  const [showAll, setShowAll] = useState(noneConfigured);
   const { t } = useI18n();
+  const Icon = section.icon;
+  const hasContent = section.setEntries.length > 0 || showAll;
+  const rowProps = {
+    edits,
+    setEdits,
+    revealed,
+    saving,
+    onSave,
+    onClear,
+    onReveal,
+    onCancelEdit,
+    clearDialogOpen,
+  };
 
   return (
-    <>
-      <Button
-        ghost
-        size="sm"
-        prefix={collapsed ? <ChevronRight /> : <ChevronDown />}
-        onClick={() => setCollapsed(!collapsed)}
-        aria-expanded={!collapsed}
-        className="self-start mt-1 normal-case tracking-normal text-xs text-muted-foreground hover:text-foreground"
+    <Card id={`section-${section.category}`}>
+      <CardHeader
+        className={`bg-card${hasContent ? " border-b border-border" : ""}`}
       >
-        {t.env.notConfigured.replace("{count}", String(unsetEntries.length))}
-      </Button>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <CardTitle className="text-base">{section.label}</CardTitle>
+          </div>
 
-      {!collapsed &&
-        unsetEntries.map(([key, info]) => (
-          <EnvVarRow
-            key={key}
-            varKey={key}
-            info={info}
-            edits={edits}
-            setEdits={setEdits}
-            revealed={revealed}
-            saving={saving}
-            onSave={onSave}
-            onClear={onClear}
-            onReveal={onReveal}
-            onCancelEdit={onCancelEdit}
-            clearDialogOpen={clearDialogOpen}
-          />
-        ))}
-    </>
+          {section.unsetEntries.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((open) => !open)}
+              aria-expanded={showAll}
+              className="shrink-0 cursor-pointer border-0 bg-transparent p-0 font-mondwest text-xs tracking-[0.08em] text-text-secondary transition-colors hover:text-foreground"
+            >
+              {showAll ? t.env.showLess : t.env.showMore}
+            </button>
+          )}
+        </div>
+
+        <CardDescription>
+          {section.setEntries.length} {t.common.of} {section.totalEntries}{" "}
+          {t.common.configured}
+        </CardDescription>
+
+        {section.hint && (
+          <CardDescription className="text-text-tertiary">
+            {section.hint}
+          </CardDescription>
+        )}
+      </CardHeader>
+
+      {hasContent && (
+        <CardContent className="grid gap-3 overflow-hidden pt-4">
+          {section.setEntries.map(([key, info]) => (
+            <EnvVarRow key={key} varKey={key} info={info} {...rowProps} />
+          ))}
+
+          {showAll &&
+            section.unsetEntries.map(([key, info]) => (
+              <EnvVarRow key={key} varKey={key} info={info} {...rowProps} />
+            ))}
+        </CardContent>
+      )}
+    </Card>
   );
 }

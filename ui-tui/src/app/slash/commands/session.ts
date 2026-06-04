@@ -40,7 +40,7 @@ const modelValueForConfigSet = (arg: string) => {
 export const sessionCommands: SlashCommand[] = [
   {
     aliases: ['bg', 'btw'],
-    help: '启动后台提示任务',
+    help: 'launch a background prompt',
     name: 'background',
     run: (arg, ctx) => {
       if (!arg) {
@@ -61,7 +61,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '切换或查看模型',
+    help: 'change or show model',
     name: 'model',
     run: (arg, ctx) => {
       if (ctx.session.guardBusySessionSwitch('change models')) {
@@ -89,25 +89,40 @@ export const sessionCommands: SlashCommand[] = [
             }))
           })
         )
-        .catch(ctx.guardedErr)
     }
   },
 
   {
-    help: '浏览并恢复历史会话',
+    aliases: ['switch', 'session', 'resume'],
+    help: 'browse, switch, or resume sessions',
     name: 'sessions',
     run: (arg, ctx) => {
-      if (ctx.session.guardBusySessionSwitch('switch sessions')) {
-        return
+      const trimmed = arg.trim()
+
+      // A new *live* session keeps the current one running in the background
+      // (it doesn't close it), so fanning out while busy is allowed — that's
+      // the whole point of multiple live sessions.
+      if (trimmed.toLowerCase() === 'new') {
+        return ctx.session.newLiveSession()
       }
-      if (!arg.trim()) {
-        return patchOverlayState({ picker: true })
+
+      // `/resume <id|title>` (and `/sessions <id>`) load a cold session and
+      // CLOSE the current one, so guard it while a turn is in-flight to avoid
+      // corrupting streaming/busy state. Bare opens the overlay to browse.
+      if (trimmed) {
+        if (ctx.session.guardBusySessionSwitch('switch sessions')) {
+          return
+        }
+
+        return ctx.session.resumeById(trimmed)
       }
+
+      patchOverlayState({ sessions: true })
     }
   },
 
   {
-    help: '附加图片',
+    help: 'attach an image',
     name: 'image',
     run: (arg, ctx) => {
       ctx.gateway.rpc<ImageAttachResponse>('image.attach', { path: arg, session_id: ctx.sid }).then(
@@ -123,7 +138,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '切换当前会话 personality',
+    help: 'switch personality for this session',
     name: 'personality',
     run: (arg, ctx) => {
       if (!arg) {
@@ -144,7 +159,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '压缩对话上下文',
+    help: 'compress transcript',
     name: 'compress',
     run: (arg, ctx) => {
       ctx.gateway
@@ -199,7 +214,7 @@ export const sessionCommands: SlashCommand[] = [
 
   {
     aliases: ['fork'],
-    help: '从当前会话创建分支',
+    help: 'branch the session',
     name: 'branch',
     run: (arg, ctx) => {
       const prevSid = ctx.sid
@@ -220,7 +235,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '语音模式：[on|off|tts|status]',
+    help: 'voice mode: [on|off|tts|status]',
     name: 'voice',
     run: (arg, ctx) => {
       const normalized = (arg ?? '').trim().toLowerCase()
@@ -309,7 +324,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '切换主题皮肤（触发 skin.changed）',
+    help: 'switch theme skin (fires skin.changed)',
     name: 'skin',
     run: (arg, ctx) => {
       if (!arg) {
@@ -325,7 +340,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '选择忙碌指示器：kaomoji（默认）、emoji、unicode（盲文）或 ascii',
+    help: 'pick the busy indicator: kaomoji (default), emoji, unicode (braille), or ascii',
     name: 'indicator',
     usage: `/indicator [${INDICATOR_STYLES.join('|')}]`,
     run: (arg, ctx) => {
@@ -362,7 +377,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '切换 yolo 模式（当前会话审批）',
+    help: 'toggle yolo mode (per-session approvals)',
     name: 'yolo',
     run: (_arg, ctx) => {
       ctx.gateway
@@ -372,7 +387,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '查看或设置 reasoning effort（实时更新 Agent）',
+    help: 'inspect or set reasoning effort (updates live agent)',
     name: 'reasoning',
     run: (arg, ctx) => {
       if (!arg) {
@@ -414,7 +429,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '切换快速模式 [normal|fast|status|on|off|toggle]',
+    help: 'toggle fast mode [normal|fast|status|on|off|toggle]',
     name: 'fast',
     run: (arg, ctx) => {
       const mode = arg.trim().toLowerCase()
@@ -458,7 +473,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '控制忙碌时回车行为 [queue|steer|interrupt|status]',
+    help: 'control busy enter mode [queue|steer|interrupt|status]',
     name: 'busy',
     run: (arg, ctx) => {
       const mode = arg.trim().toLowerCase()
@@ -493,7 +508,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '切换详细工具输出模式（实时更新 Agent）',
+    help: 'cycle verbose tool-output mode (updates live agent)',
     name: 'verbose',
     run: (arg, ctx) => {
       ctx.gateway
@@ -503,7 +518,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: '查看会话用量（实时计数）',
+    help: 'session usage (live counts — worker sees zeros)',
     name: 'usage',
     run: (_arg, ctx) => {
       ctx.gateway.rpc<SessionUsageResponse>('session.usage', { session_id: ctx.sid }).then(r => {
