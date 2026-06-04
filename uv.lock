@@ -1405,6 +1405,7 @@ dependencies = [
     { name = "ptyprocess", marker = "sys_platform != 'win32'" },
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
+    { name = "python-multipart" },
     { name = "python-dotenv" },
     { name = "pywinpty", marker = "sys_platform == 'win32'" },
     { name = "pyyaml" },

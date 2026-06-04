@@ -95,6 +95,19 @@ function Refresh-Path {
     $env:Path = "$machinePath;$userPath"
 }
 
+function Resolve-HermesHome {
+    if ($env:HERMES_HOME) {
+        return $env:HERMES_HOME
+    }
+    $legacy = Join-Path $env:USERPROFILE ".hermes"
+    foreach ($marker in @("state.db", "config.yaml", ".env", "auth.json")) {
+        if (Test-Path (Join-Path $legacy $marker)) {
+            return $legacy
+        }
+    }
+    return (Join-Path $env:LOCALAPPDATA "hermes")
+}
+
 function Install-WithWinget {
     param(
         [string]$Name,
@@ -239,6 +252,8 @@ Write-Host "Hermes Agent fork installer" -ForegroundColor Green
 Write-Host "Repo:       $RepoUrl"
 Write-Host "Branch:     $Branch"
 Write-Host "InstallDir: $InstallDir"
+$env:HERMES_HOME = Resolve-HermesHome
+Write-Host "HermesHome: $env:HERMES_HOME"
 Write-Host ""
 
 Ensure-Command "git" "Git.Git" "https://git-scm.com/download/win"

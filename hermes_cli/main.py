@@ -1313,6 +1313,28 @@ def _tui_need_npm_install(root: Path) -> bool:
     if not marker.is_file():
         return True
 
+    if ws_root != root:
+        bin_suffix = ".cmd" if sys.platform.startswith("win") else ""
+        required = (
+            ws_root / "node_modules" / ".bin" / f"esbuild{bin_suffix}",
+            ws_root / "node_modules" / ".bin" / f"tsx{bin_suffix}",
+            ws_root / "node_modules" / "ink" / "package.json",
+            ws_root / "node_modules" / "@hermes" / "ink" / "package.json",
+        )
+        if any(not path.is_file() for path in required):
+            return True
+        try:
+            marker_mtime = marker.stat().st_mtime
+        except OSError:
+            return True
+        for rel in ("package.json", "packages/hermes-ink/package.json"):
+            try:
+                if (root / rel).stat().st_mtime > marker_mtime:
+                    return True
+            except OSError:
+                continue
+        return False
+
     # Compare lockfile contents, not mtimes: git checkouts and npm rewrites
     # can bump the root lockfile timestamp even when installed deps already
     # match. Fall back to mtime when either file is unparseable.
@@ -1532,7 +1554,16 @@ def _make_tui_argv(tui_dir: Path, tui_dev: bool) -> tuple[list[str], Path]:
         if not os.environ.get("HERMES_QUIET"):
             print("Installing TUI dependencies…")
         result = subprocess.run(
-            [npm, "install", "--silent", "--no-fund", "--no-audit", "--progress=false"],
+            [
+                npm,
+                "install",
+                "--silent",
+                "--no-fund",
+                "--no-audit",
+                "--progress=false",
+                "--workspace",
+                "ui-tui",
+            ],
             cwd=str(_workspace_root(tui_dir)),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -7004,10 +7035,14 @@ def _build_web_ui(web_dir: Path, *, fatal: bool = False) -> bool:
             if text:
                 _say(text)
 
+    web_ws_root = _workspace_root(web_dir)
+    web_install_args = ["--silent"]
+    if web_ws_root != web_dir:
+        web_install_args.extend(["--workspace", "web"])
     r1 = _run_npm_install_deterministic(
         npm,
-        _workspace_root(web_dir),
-        extra_args=("--silent",),
+        web_ws_root,
+        extra_args=tuple(web_install_args),
     )
     if r1.returncode != 0:
         _say(

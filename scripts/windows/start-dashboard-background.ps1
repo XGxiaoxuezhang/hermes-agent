@@ -13,6 +13,19 @@ $pidFile = Join-Path $stateDir "dashboard.pid"
 $logFile = Join-Path $stateDir "dashboard.log"
 $errorLogFile = Join-Path $stateDir "dashboard-error.log"
 
+function Resolve-HermesHome {
+    if ($env:HERMES_HOME) {
+        return $env:HERMES_HOME
+    }
+    $legacy = Join-Path $env:USERPROFILE ".hermes"
+    foreach ($marker in @("state.db", "config.yaml", ".env", "auth.json")) {
+        if (Test-Path (Join-Path $legacy $marker)) {
+            return $legacy
+        }
+    }
+    return (Join-Path $env:LOCALAPPDATA "hermes")
+}
+
 function Get-ProcessDescription {
     param([int]$ProcessId)
     $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
@@ -29,6 +42,8 @@ function Get-ProcessDescription {
         ExecutablePath = $exe
     }
 }
+
+$env:HERMES_HOME = Resolve-HermesHome
 
 if (-not (Test-Path $python)) {
     throw "Missing virtual environment: $python. Run scripts\windows\install-local.ps1 first."

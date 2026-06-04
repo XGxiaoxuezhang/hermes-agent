@@ -6997,7 +6997,7 @@ import re
 # /api/pty endpoint cleanly refuses with a WSL-suggested message.
 try:
     from hermes_cli.pty_bridge import PtyBridge, PtyUnavailableError
-    _PTY_BRIDGE_AVAILABLE = True
+    _PTY_BRIDGE_AVAILABLE = PtyBridge.is_available()
 except ImportError as _pty_import_err:  # pragma: no cover - Windows-only path
     PtyBridge = None  # type: ignore[assignment]
     _PTY_BRIDGE_AVAILABLE = False

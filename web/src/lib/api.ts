@@ -41,26 +41,75 @@ function setSessionHeader(headers: Headers, token: string): void {
   }
 }
 
+function readSessionToken(): string {
+  return window.__HERMES_SESSION_TOKEN__ ?? "";
+}
+
+function extractSessionToken(html: string): string | null {
+  const match = html.match(/window\.__HERMES_SESSION_TOKEN__="([^"]+)"/);
+  return match?.[1] ?? null;
+}
+
+export async function refreshLoopbackSessionToken(
+  previousToken?: string,
+): Promise<boolean> {
+  if (window.__HERMES_AUTH_REQUIRED__) return false;
+
+  const path =
+    window.location.pathname && !window.location.pathname.startsWith(`${BASE}/api/`)
+      ? `${window.location.pathname}${window.location.search}`
+      : `${BASE || "/"}`;
+
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      cache: "no-store",
+      credentials: "include",
+      headers: { "Cache-Control": "no-cache" },
+    });
+  } catch {
+    return false;
+  }
+  if (!res.ok) return false;
+
+  const html = await res.text().catch(() => "");
+  const nextToken = extractSessionToken(html);
+  if (!nextToken || nextToken === previousToken) return false;
+
+  window.__HERMES_SESSION_TOKEN__ = nextToken;
+  _sessionToken = nextToken;
+  try {
+    sessionStorage.removeItem("hermes.tokenReloadAttempted");
+  } catch {
+    /* privacy mode */
+  }
+  return true;
+}
+
 export async function fetchJSON<T>(
   url: string,
   init?: RequestInit,
   options?: FetchJSONOptions,
 ): Promise<T> {
-  // Inject the session token into all /api/ requests.
-  const headers = new Headers(init?.headers);
-  const token = window.__HERMES_SESSION_TOKEN__;
-  if (token) {
-    setSessionHeader(headers, token);
-  }
-  const res = await fetch(`${BASE}${url}`, {
-    ...init,
-    headers,
-    // ``credentials: 'include'`` so the cookie-auth path (gated mode) works
-    // for any fetch routed through here. Loopback mode is unaffected — the
-    // server doesn't read cookies and the legacy session-token header is
-    // already attached above.
-    credentials: init?.credentials ?? "include",
-  });
+  const doFetch = () => {
+    // Inject the session token into all /api/ requests.
+    const headers = new Headers(init?.headers);
+    const token = readSessionToken();
+    if (token) {
+      setSessionHeader(headers, token);
+    }
+    return fetch(`${BASE}${url}`, {
+      ...init,
+      headers,
+      // ``credentials: 'include'`` so the cookie-auth path (gated mode) works
+      // for any fetch routed through here. Loopback mode is unaffected — the
+      // server doesn't read cookies and the legacy session-token header is
+      // already attached above.
+      credentials: init?.credentials ?? "include",
+    });
+  };
+
+  let res = await doFetch();
   if (res.status === 401) {
     // Phase 6: the gated middleware emits a structured envelope so the
     // SPA can full-page-navigate to /login on session expiry. Parse it,
@@ -99,12 +148,22 @@ export async function fetchJSON<T>(
     // (``hermes update``, ``hermes gateway restart``, etc.). A tab kept
     // open across the restart holds the OLD token in
     // ``window.__HERMES_SESSION_TOKEN__`` from the previous HTML render,
-    // so every fetch returns 401. The HTML is served ``Cache-Control:
-    // no-store`` so a reload picks up the freshly-injected token. Trigger
-    // that reload once on the first stale-token 401 — gated mode is
-    // handled above, so reaching here in gated mode means a real
-    // middleware failure that should not reload-loop.
+    // so every protected fetch returns 401. First fetch the current SPA
+    // HTML with no-store, harvest the freshly injected token, and retry the
+    // original request once. This fixes stale tabs without forcing a full
+    // reload. If that fails, fall back to the existing reload path.
     if (!window.__HERMES_AUTH_REQUIRED__ && !options?.allowUnauthorized) {
+      const previousToken = readSessionToken();
+      if (await refreshLoopbackSessionToken(previousToken)) {
+        res = await doFetch();
+      }
+    }
+
+    if (
+      res.status === 401 &&
+      !window.__HERMES_AUTH_REQUIRED__ &&
+      !options?.allowUnauthorized
+    ) {
       let alreadyReloaded = false;
       try {
         alreadyReloaded =

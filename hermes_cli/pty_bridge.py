@@ -1,71 +1,62 @@
-"""PTY bridge for `hermes dashboard` chat tab.
+"""PTY bridge for the dashboard Chat tab.
 
-Wraps a child process behind a pseudo-terminal so its ANSI output can be
-streamed to a browser-side terminal emulator (xterm.js) and typed
-keystrokes can be fed back in.  The only caller today is the
-``/api/pty`` WebSocket endpoint in ``hermes_cli.web_server``.
+The browser Chat page talks to ``/api/pty`` over WebSocket.  This module
+wraps the real ``hermes --tui`` child process behind a platform PTY and
+exposes a small byte-oriented interface used by that endpoint.
 
-Design constraints:
-
-* **POSIX-only.**  This module depends on ``fcntl``, ``termios``, and
-  ``ptyprocess``, none of which exist on native Windows Python.  Native
-  Windows ConPTY is a different API (Windows 10 build 17763+) and would
-  need a separate Windows implementation (``pywinpty``) — that's tracked
-  as a future enhancement.  On native Windows, importing this module
-  raises :class:`ImportError` and the dashboard's ``/chat`` tab shows a
-  WSL-recommended banner instead of crashing.  Every other feature in the
-  dashboard (sessions, jobs, metrics, config editor) works natively.
-* **Zero Node dependency on the server side.**  We use :mod:`ptyprocess`,
-  which is a pure-Python wrapper around the OS calls.  The browser talks
-  to the same ``hermes --tui`` binary it would launch from the CLI, so
-  every TUI feature (slash popover, model picker, tool rows, markdown,
-  skin engine, clarify/sudo/approval prompts) ships automatically.
-* **Byte-safe I/O.**  Reads and writes go through the PTY master fd
-  directly — we avoid :class:`ptyprocess.PtyProcessUnicode` because
-  streaming ANSI is inherently byte-oriented and UTF-8 boundaries may land
-  mid-read.
+POSIX hosts use ``ptyprocess``.  Native Windows uses ``pywinpty`` / ConPTY.
+Both paths intentionally share the same public methods so Windows dashboard
+installs can use Chat without requiring WSL.
 """
 
 from __future__ import annotations
 
 import errno
-import fcntl
 import os
-import select
 import signal
 import struct
 import sys
-import termios
 import time
 from typing import Optional, Sequence
 
-try:
-    import ptyprocess  # type: ignore
-    _PTY_AVAILABLE = not sys.platform.startswith("win")
-except ImportError:  # pragma: no cover - dev env without ptyprocess
-    ptyprocess = None  # type: ignore
-    _PTY_AVAILABLE = False
+_IS_WINDOWS = sys.platform.startswith("win")
 
+if _IS_WINDOWS:
+    try:
+        import winpty  # type: ignore
+    except ImportError:  # pragma: no cover - Windows env without pywinpty
+        winpty = None  # type: ignore
+    ptyprocess = None  # type: ignore
+    fcntl = None  # type: ignore
+    select = None  # type: ignore
+    termios = None  # type: ignore
+else:
+    try:
+        import fcntl
+        import select
+        import termios
+        import ptyprocess  # type: ignore
+    except ImportError:  # pragma: no cover - dev env without ptyprocess
+        fcntl = None  # type: ignore
+        select = None  # type: ignore
+        termios = None  # type: ignore
+        ptyprocess = None  # type: ignore
+    winpty = None  # type: ignore
+
+_PTY_AVAILABLE = bool(winpty if _IS_WINDOWS else ptyprocess)
 
 __all__ = ["PtyBridge", "PtyUnavailableError"]
 
 
-# ``struct winsize`` packs rows/cols as unsigned short (0..65535).  We clamp
+# ``struct winsize`` packs rows/cols as unsigned short (0..65535).  Clamp
 # well below that ceiling: real terminals never exceed a couple thousand
-# columns, and a value above this is a broken probe (WSL2 reports
-# columns=131072) rather than a genuine ultrawide.  Lower bound is 1 — a
-# zero/negative dimension is the classic "no size yet" signal.
+# columns, and values above this are usually broken probes.
 _MIN_DIMENSION = 1
 _MAX_COLS = 2000
 _MAX_ROWS = 1000
 
 
 def _clamp_dimension(value: int, maximum: int) -> int:
-    """Clamp a reported terminal dimension into ``[_MIN_DIMENSION, maximum]``.
-
-    Non-integer / non-finite values fall back to ``_MIN_DIMENSION`` so a bad
-    probe can never reach ``struct.pack`` and raise ``struct.error``.
-    """
     try:
         n = int(value)
     except (TypeError, ValueError, OverflowError):
@@ -78,35 +69,19 @@ def _clamp_dimension(value: int, maximum: int) -> int:
 
 
 class PtyUnavailableError(RuntimeError):
-    """Raised when a PTY cannot be created on this platform.
-
-    Today this means native Windows (no ConPTY bindings) or a dev
-    environment missing the ``ptyprocess`` dependency.  The dashboard
-    surfaces the message to the user as a chat-tab banner.
-    """
+    """Raised when the platform-specific PTY backend is unavailable."""
 
 
 class PtyBridge:
-    """Thin wrapper around ``ptyprocess.PtyProcess`` for byte streaming.
+    """Thin wrapper around a platform PTY process for byte streaming."""
 
-    Not thread-safe.  A single bridge is owned by the WebSocket handler
-    that spawned it; the reader runs in an executor thread while writes
-    happen on the event-loop thread.  Both sides are OK because the
-    kernel PTY is the actual synchronization point — we never call
-    :mod:`ptyprocess` methods concurrently, we only call ``os.read`` and
-    ``os.write`` on the master fd, which is safe.
-    """
-
-    def __init__(self, proc: "ptyprocess.PtyProcess"):  # type: ignore[name-defined]
+    def __init__(self, proc):  # type: ignore[no-untyped-def]
         self._proc = proc
-        self._fd: int = proc.fd
+        self._fd: int = int(getattr(proc, "fd", -1))
         self._closed = False
-
-    # -- lifecycle --------------------------------------------------------
 
     @classmethod
     def is_available(cls) -> bool:
-        """True if a PTY can be spawned on this platform."""
         return bool(_PTY_AVAILABLE)
 
     @classmethod
@@ -119,39 +94,49 @@ class PtyBridge:
         cols: int = 80,
         rows: int = 24,
     ) -> "PtyBridge":
-        """Spawn ``argv`` behind a new PTY and return a bridge.
-
-        Raises :class:`PtyUnavailableError` if the platform can't host a
-        PTY.  Raises :class:`FileNotFoundError` or :class:`OSError` for
-        ordinary exec failures (missing binary, bad cwd, etc.).
-        """
         if not _PTY_AVAILABLE:
-            if sys.platform.startswith("win"):
+            if _IS_WINDOWS:
                 raise PtyUnavailableError(
-                    "Pseudo-terminals are unavailable on this platform. "
-                    "Hermes Agent supports Windows only via WSL."
+                    "The `pywinpty` package is missing, so native Windows "
+                    "embedded chat cannot start. Re-run the Hermes Windows "
+                    "installer or install with: pip install pywinpty"
                 )
-            if ptyprocess is None:
-                raise PtyUnavailableError(
-                    "The `ptyprocess` package is missing. "
-                    "Install with: pip install ptyprocess "
-                    "(or pip install -e '.[pty]')."
-                )
-            raise PtyUnavailableError("Pseudo-terminals are unavailable.")
-        # PTY-hosted programs expect TERM to describe the terminal type.
-        # CI often runs without TERM in the parent process, which makes
-        # simple terminal probes like `tput cols` fail before winsize reads.
-        # Preserve explicit caller overrides, but backfill a sensible default
-        # when TERM is missing or blank.
+            raise PtyUnavailableError(
+                "The `ptyprocess` package is missing. Install with: "
+                "pip install ptyprocess (or pip install -e '.[pty]')."
+            )
+
         spawn_env = (os.environ.copy() if env is None else env.copy())
         if not spawn_env.get("TERM"):
             spawn_env["TERM"] = "xterm-256color"
-        proc = ptyprocess.PtyProcess.spawn(  # type: ignore[union-attr]
-            list(argv),
-            cwd=cwd,
-            env=spawn_env,
-            dimensions=(rows, cols),
-        )
+
+        rows = _clamp_dimension(rows, _MAX_ROWS)
+        cols = _clamp_dimension(cols, _MAX_COLS)
+
+        if _IS_WINDOWS:
+            # pywinpty defaults to blocking reads. The websocket pump expects
+            # read() to periodically return b"" when no data is ready.
+            old_block = os.environ.get("PYWINPTY_BLOCK")
+            os.environ["PYWINPTY_BLOCK"] = "0"
+            try:
+                proc = winpty.PtyProcess.spawn(  # type: ignore[union-attr]
+                    list(argv),
+                    cwd=cwd,
+                    env=spawn_env,
+                    dimensions=(rows, cols),
+                )
+            finally:
+                if old_block is None:
+                    os.environ.pop("PYWINPTY_BLOCK", None)
+                else:
+                    os.environ["PYWINPTY_BLOCK"] = old_block
+        else:
+            proc = ptyprocess.PtyProcess.spawn(  # type: ignore[union-attr]
+                list(argv),
+                cwd=cwd,
+                env=spawn_env,
+                dimensions=(rows, cols),
+            )
         return cls(proc)
 
     @property
@@ -166,21 +151,29 @@ class PtyBridge:
         except Exception:
             return False
 
-    # -- I/O --------------------------------------------------------------
-
     def read(self, timeout: float = 0.2) -> Optional[bytes]:
-        """Read up to 64 KiB of raw bytes from the PTY master.
-
-        Returns:
-            * bytes — zero or more bytes of child output
-            * empty bytes (``b""``) — no data available within ``timeout``
-            * None — child has exited and the master fd is at EOF
-
-        Never blocks longer than ``timeout`` seconds.  Safe to call after
-        :meth:`close`; returns ``None`` in that case.
-        """
+        """Read raw bytes, b"" when idle, or None when the child exits."""
         if self._closed:
             return None
+
+        if _IS_WINDOWS:
+            try:
+                data = self._proc.read(65536)
+            except EOFError:
+                return None
+            except OSError:
+                return None
+            if not data:
+                return b""
+            if isinstance(data, bytes):
+                data = data.decode("utf-8", "replace")
+            # pywinpty's non-blocking reader uses this private sentinel to
+            # wake its socket bridge when no console output is ready.
+            data = str(data).replace("0011Ignore", "")
+            if not data:
+                return b""
+            return data.encode("utf-8", "replace")
+
         try:
             readable, _, _ = select.select([self._fd], [], [], timeout)
         except (OSError, ValueError):
@@ -190,7 +183,6 @@ class PtyBridge:
         try:
             data = os.read(self._fd, 65536)
         except OSError as exc:
-            # EIO on Linux = slave side closed.  EBADF = already closed.
             if exc.errno in {errno.EIO, errno.EBADF}:
                 return None
             raise
@@ -199,10 +191,16 @@ class PtyBridge:
         return data
 
     def write(self, data: bytes) -> None:
-        """Write raw bytes to the PTY master (i.e. the child's stdin)."""
         if self._closed or not data:
             return
-        # os.write can return a short write under load; loop until drained.
+
+        if _IS_WINDOWS:
+            try:
+                self._proc.write(data.decode("utf-8", "ignore"))
+            except (EOFError, OSError):
+                return
+            return
+
         view = memoryview(data)
         while view:
             try:
@@ -216,43 +214,40 @@ class PtyBridge:
             view = view[n:]
 
     def resize(self, cols: int, rows: int) -> None:
-        """Forward a terminal resize to the child via ``TIOCSWINSZ``.
-
-        Dimensions are clamped to a sane range first.  Some hosts report
-        garbage window sizes — the motivating case is WSL2, where xterm.js
-        in the dashboard ``/chat`` tab can pick up ``columns=131072,
-        rows=1`` from a broken winsize probe.  ``struct winsize`` packs each
-        field as an unsigned short (max 65535), so an unclamped 131072 would
-        raise ``struct.error`` (not ``OSError``) and break the resize path,
-        leaving the TUI laid out for a one-row / absurdly-wide screen —
-        which is what shows up as blank / disappearing text.
-        """
         if self._closed:
             return
         cols = _clamp_dimension(cols, _MAX_COLS)
         rows = _clamp_dimension(rows, _MAX_ROWS)
-        # struct winsize: rows, cols, xpixel, ypixel (all unsigned short)
+
+        if _IS_WINDOWS:
+            try:
+                self._proc.setwinsize(rows, cols)
+            except Exception:
+                pass
+            return
+
         winsize = struct.pack("HHHH", rows, cols, 0, 0)
         try:
             fcntl.ioctl(self._fd, termios.TIOCSWINSZ, winsize)
         except OSError:
             pass
 
-    # -- teardown ---------------------------------------------------------
-
     def close(self) -> None:
-        """Terminate the child (SIGTERM → 0.5s grace → SIGKILL) and close fds.
-
-        Idempotent.  Reaping the child is important so we don't leak
-        zombies across the lifetime of the dashboard process.
-        """
         if self._closed:
             return
         self._closed = True
 
-        # SIGHUP is the conventional "your terminal went away" signal.
-        # We escalate if the child ignores it.
-        for sig in (signal.SIGHUP, signal.SIGTERM, signal.SIGKILL):  # windows-footgun: ok — POSIX-only module (imports fcntl/termios/ptyprocess at top)
+        if _IS_WINDOWS:
+            try:
+                self._proc.close(force=True)
+            except Exception:
+                try:
+                    self._proc.terminate(force=True)
+                except Exception:
+                    pass
+            return
+
+        for sig in (signal.SIGHUP, signal.SIGTERM, signal.SIGKILL):
             if not self._proc.isalive():
                 break
             try:
@@ -268,7 +263,6 @@ class PtyBridge:
         except Exception:
             pass
 
-    # Context-manager sugar — handy in tests and ad-hoc scripts.
     def __enter__(self) -> "PtyBridge":
         return self
 

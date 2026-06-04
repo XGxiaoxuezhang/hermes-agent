@@ -35,6 +35,19 @@ function Refresh-Path {
     $env:Path = "$machinePath;$userPath"
 }
 
+function Resolve-HermesHome {
+    if ($env:HERMES_HOME) {
+        return $env:HERMES_HOME
+    }
+    $legacy = Join-Path $env:USERPROFILE ".hermes"
+    foreach ($marker in @("state.db", "config.yaml", ".env", "auth.json")) {
+        if (Test-Path (Join-Path $legacy $marker)) {
+            return $legacy
+        }
+    }
+    return (Join-Path $env:LOCALAPPDATA "hermes")
+}
+
 function Install-WithWinget {
     param(
         [string]$Name,
@@ -323,7 +336,8 @@ function Add-UserPathEntry {
 function Install-CommandShims {
     param(
         [string]$RepoPath,
-        [string]$PythonPath
+        [string]$PythonPath,
+        [string]$HermesHome
     )
 
     $binDir = Join-Path $env:LOCALAPPDATA "HermesAgent\bin"
@@ -334,16 +348,18 @@ function Install-CommandShims {
     $hermesCmd = Join-Path $binDir "hermes.cmd"
     $dashboardCmd = Join-Path $binDir "hermes-dashboard.cmd"
 
-    $hermesContent = @"
+$hermesContent = @"
 @echo off
 set "HERMES_REPO=$RepoPath"
+set "HERMES_HOME=$HermesHome"
 "$PythonPath" -m hermes_cli.main %*
 "@
     Set-Content -Path $hermesCmd -Value $hermesContent -Encoding ASCII
 
-    $dashboardContent = @"
+$dashboardContent = @"
 @echo off
 set "HERMES_REPO=$RepoPath"
+set "HERMES_HOME=$HermesHome"
 powershell -ExecutionPolicy Bypass -File "$RepoPath\scripts\windows\start-dashboard-background.ps1" %*
 "@
     Set-Content -Path $dashboardCmd -Value $dashboardContent -Encoding ASCII
@@ -357,10 +373,12 @@ $repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $venv = Join-Path $repo "venv"
 $python = Join-Path $venv "Scripts\python.exe"
 $webDir = Join-Path $repo "web"
+$env:HERMES_HOME = Resolve-HermesHome
 
 Write-Host ""
 Write-Host "Hermes Agent local Windows install" -ForegroundColor Green
 Write-Host "Repo: $repo"
+Write-Host "HermesHome: $env:HERMES_HOME"
 Write-Host ""
 
 Ensure-Command "git" "Git.Git" "https://git-scm.com/download/win"
@@ -429,7 +447,7 @@ if (-not $SkipWebBuild) {
 
 Write-Step "Checking Hermes CLI"
 Invoke-Checked $python "-m" "hermes_cli.main" "--help" | Select-Object -First 1 | Out-Null
-Install-CommandShims (Resolve-Path $repo).Path (Resolve-Path $python).Path
+Install-CommandShims (Resolve-Path $repo).Path (Resolve-Path $python).Path $env:HERMES_HOME
 
 Write-Host ""
 Write-Host "Install complete." -ForegroundColor Green
