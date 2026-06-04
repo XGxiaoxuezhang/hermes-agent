@@ -23,7 +23,7 @@ describe('toTranscriptMessages', () => {
       ['assistant', 'first answer'],
       ['user', 'second prompt']
     ])
-    expect(toTranscriptMessages(rows)[1]?.tools?.[0]).toContain('Search Files')
+    expect(toTranscriptMessages(rows)[1]?.tools?.[0]).toContain('repo')
   })
 })
 
@@ -67,7 +67,7 @@ describe('MessageLine', () => {
       .split('\n')
       .find(line => line.includes('Okay'))
 
-    expect(renderedLine).toContain('Ψ > Okay')
+    expect(renderedLine).toContain('Ψ > 你： Okay')
   })
 })
 

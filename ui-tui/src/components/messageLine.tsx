@@ -172,15 +172,24 @@ export const MessageLine = memo(function MessageLine({
       )
     }
 
-    if (msg.role === 'user' && msg.text.length > LONG_MSG && isPasteBackedText(msg.text)) {
-      const [head, ...rest] = userDisplay(msg.text).split('[long message]')
+    if (msg.role === 'user') {
+      const visibleText =
+        msg.text.length > LONG_MSG && isPasteBackedText(msg.text)
+          ? userDisplay(msg.text)
+          : msg.text
+      const [head, ...rest] = visibleText.split('[long message]')
 
       return (
         <Text color={body}>
-          {head}
-          <Text color={t.color.muted} dimColor>
-            [long message]
+          <Text bold color={prefix}>
+            你：{' '}
           </Text>
+          {head}
+          {rest.length > 0 && (
+            <Text color={t.color.muted} dimColor>
+              [long message]
+            </Text>
+          )}
           {rest.join('')}
         </Text>
       )
