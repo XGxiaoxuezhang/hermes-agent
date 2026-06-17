@@ -2142,8 +2142,18 @@ function resolveWebDist() {
   const override = process.env.HERMES_DESKTOP_WEB_DIST
   if (override && directoryExists(path.resolve(override))) return path.resolve(override)
 
+  const repoCandidates = [
+    path.join(SOURCE_REPO_ROOT, 'apps', 'desktop', 'dist'),
+    path.join(SOURCE_REPO_ROOT, 'hermes_cli', 'web_dist')
+  ]
+  for (const candidate of repoCandidates) {
+    if (directoryExists(candidate) && fileExists(path.join(candidate, 'index.html'))) {
+      return candidate
+    }
+  }
+
   const unpackedDist = path.join(unpackedPathFor(APP_ROOT), 'dist')
-  if (directoryExists(unpackedDist)) return unpackedDist
+  if (directoryExists(unpackedDist) && fileExists(path.join(unpackedDist, 'index.html'))) return unpackedDist
 
   // Final fallback: APP_ROOT/dist. When packaged with asar:true this lives
   // INSIDE app.asar — not a servable filesystem directory — so the embedded
