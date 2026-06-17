@@ -136,3 +136,10 @@ RELEASE_v*.md
 # Desktop demo-run scratch output (hermes writes demo/*.txt during recorded
 # walkthroughs). Throwaway artifacts, never part of the app.
 apps/desktop/demo/
+
+# Temporary desktop packaging / asar extraction artifacts emitted by local
+# verification flows. These can appear at the repo root when testing packaged
+# desktop payload resolution and are never source files.
+/.codex-tmp/
+/index.html
+/main.cjs
