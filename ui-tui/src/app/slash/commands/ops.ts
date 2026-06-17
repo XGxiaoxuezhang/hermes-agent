@@ -653,7 +653,32 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    help: '启用或禁用 tools（变更后会重置客户端历史）',
+    help: 'view & toggle plugins (no arg opens the hub; enable/disable <name> for direct toggle)',
+    name: 'plugins',
+    run: (arg, ctx, cmd) => {
+      if (!arg.trim()) {
+        return patchOverlayState({ pluginsHub: true })
+      }
+
+      ctx.gateway.gw
+        .request<SlashExecResponse>('slash.exec', { command: cmd.slice(1), session_id: ctx.sid })
+        .then(r => {
+          if (ctx.stale()) {
+            return
+          }
+
+          const body = r?.output || '/plugins: no output'
+          const text = r?.warning ? `warning: ${r.warning}\n${body}` : body
+          const long = text.length > 180 || text.split('\n').filter(Boolean).length > 2
+
+          long ? ctx.transcript.page(text, 'Plugins') : ctx.transcript.sys(text)
+        })
+        .catch(ctx.guardedErr)
+    }
+  },
+
+  {
+      help: '启用或禁用 tools（变更后会重置客户端历史）',
     name: 'tools',
     run: (arg, ctx, cmd) => {
       const [subcommand, ...names] = arg.trim().split(/\s+/).filter(Boolean)
