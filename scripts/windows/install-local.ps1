@@ -212,7 +212,6 @@ function Invoke-Checked {
     param(
         [Parameter(Mandatory = $true)]
         [string]$FilePath,
-        [Parameter(ValueFromRemainingArguments = $true)]
         [string[]]$Arguments
     )
     & $FilePath @Arguments
@@ -241,7 +240,7 @@ function New-HermesVenv {
         throw "Python 3.11/3.13 is required but Hermes cannot find it. Disable Windows Store python aliases or reinstall Python 3.13, then retry."
     }
     $parts = Split-PythonCommand $command
-    Invoke-Checked $parts.File @($parts.Args + @("-m", "venv", $VenvPath))
+    Invoke-Checked -FilePath $parts.File -Arguments ($parts.Args + @("-m", "venv", $VenvPath))
 }
 
 function Stop-DashboardPort {
@@ -423,12 +422,12 @@ if (-not (Test-Path $python)) {
 Stop-DashboardPort $Port $repo
 
 Write-Step "Upgrading pip"
-Invoke-Checked $python "-m" "pip" "install" "--upgrade" "pip"
+Invoke-Checked -FilePath $python -Arguments @("-m", "pip", "install", "--upgrade", "pip")
 
 Write-Step "Installing Hermes in editable mode with Web UI and PTY support"
 Push-Location $repo
 try {
-    Invoke-Checked $python "-m" "pip" "install" "--only-binary=:all:" "-e" ".[web,pty]"
+    Invoke-Checked -FilePath $python -Arguments @("-m", "pip", "install", "--only-binary=:all:", "-e", ".[web,pty]")
 } finally {
     Pop-Location
 }
@@ -437,16 +436,16 @@ if (-not $SkipWebBuild) {
     Write-Step "Installing dashboard npm dependencies"
     Push-Location $webDir
     try {
-        Invoke-Checked "npm" "install"
+        Invoke-Checked -FilePath "npm" -Arguments @("install")
         Write-Step "Building dashboard assets for port $Port production mode"
-        Invoke-Checked "npm" "run" "build"
+        Invoke-Checked -FilePath "npm" -Arguments @("run", "build")
     } finally {
         Pop-Location
     }
 }
 
 Write-Step "Checking Hermes CLI"
-Invoke-Checked $python "-m" "hermes_cli.main" "--help" | Select-Object -First 1 | Out-Null
+Invoke-Checked -FilePath $python -Arguments @("-m", "hermes_cli.main", "--help") | Select-Object -First 1 | Out-Null
 Install-CommandShims (Resolve-Path $repo).Path (Resolve-Path $python).Path $env:HERMES_HOME
 
 Write-Host ""
